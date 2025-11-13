@@ -8,6 +8,8 @@ import time
 from functools import wraps
 from typing import Any, Dict, List, Optional
 
+from metrics import metrics_manager
+
 
 REGISTRY: Dict[str, Any] = {}
 CONFIG_SOURCE: Dict[str, Dict[str, Any]] = {}
@@ -294,10 +296,21 @@ def add_performance_tracking(cls):
     @wraps(original_envoyer)
     def wrapped_envoyer(self, *args, **kwargs):
         start_time = time.time()
-        result = original_envoyer(self, *args, **kwargs)
-        duration = time.time() - start_time
-        print(f"[PERF] {cls.__name__}.envoyer exécuté en {duration:.3f}s")
-        return result
+        try:
+            result = original_envoyer(self, *args, **kwargs)
+            duration = time.time() - start_time
+            metrics_manager.record_notification(
+                cls.__name__, duration, success=True
+            )
+            print(f"[PERF] {cls.__name__}.envoyer exécuté en {duration:.3f}s")
+            return result
+        except Exception as exc:
+            duration = time.time() - start_time
+            metrics_manager.record_notification(
+                cls.__name__, duration, success=False, error=str(exc)
+            )
+            print(f"[PERF] {cls.__name__}.envoyer a échoué en {duration:.3f}s")
+            raise
 
     cls.envoyer = wrapped_envoyer
     return cls

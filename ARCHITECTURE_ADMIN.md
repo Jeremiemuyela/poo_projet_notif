@@ -16,6 +16,7 @@ L'interface d'administration permet de gérer la configuration système du servi
 4. **`templates/admin/config_retry.html`** - Page de configuration Retry
 5. **`templates/admin/config_circuit_breaker.html`** - Page de configuration Circuit Breaker
 6. **`templates/admin/status.html`** - Page de statut système
+7. **`metrics.py`** - Collecteur global des métriques de performance
 
 ---
 
@@ -49,6 +50,11 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin', template_folder='te
 - Liste les canaux, templates, notificateurs enregistrés
 - Utilise le `REGISTRY` global
 
+##### `get_metrics_summary() -> Dict[str, Any]`
+- Récupère les métriques globales et par notificateur depuis `metrics_manager`
+- Calcule les taux de succès et ajoute des timestamps formattés
+- Sert de source unique pour `/admin/api/status` et `/admin/api/metrics`
+
 #### Routes Pages HTML
 
 1. **`GET /admin/`** → Page d'accueil (tableau de bord)
@@ -69,7 +75,25 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin', template_folder='te
 - **`POST /admin/api/config/circuit-breaker/reset`** - Réinitialise aux valeurs par défaut
 
 ##### Statut Système
-- **`GET /admin/api/status`** - Récupère le statut complet du système
+- **`GET /admin/api/status`** - Récupère le statut complet du système (statut + configurations + métriques)
+
+##### Métriques de performance
+- **`GET /admin/api/metrics`** - Récupère uniquement les métriques globales et par notificateur
+
+---
+
+### 2. Module de métriques (`metrics.py`)
+
+#### `PerformanceMetrics`
+- Classe thread-safe qui centralise les statistiques d'exécution des notificateurs
+- Stocke les totaux, moyennes, min/max, derniers temps et derniers échecs
+- Fournit `record_notification()` pour enregistrer chaque envoi
+- Fournit `get_summary()` pour exposer les métriques agrégées au reste de l'application
+
+#### `metrics_manager`
+- Instance unique de `PerformanceMetrics`
+- Importée par `projetnotif.py` pour l'instrumentation
+- Importée par `admin.py` pour l'exposition via l'API
 
 ---
 
@@ -92,14 +116,17 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin', template_folder='te
 #### 1. Tableau de Bord (`index.html`)
 
 **Contenu :**
-- **Statistiques** : Nombre de notificateurs, canaux, templates, configurations
+- **Statistiques générales** : Nombre de notificateurs, canaux, templates, configurations
+- **Métriques globales** : Totaux, taux de succès, durée moyenne, dernière notification (mise à jour en temps réel)
+- **Métriques par notificateur** : Tableau dynamique avec taux de succès, min/max, dernière exécution
 - **Configuration Retry** : Vue d'ensemble avec lien vers la page détaillée
 - **Configuration Circuit Breaker** : Vue d'ensemble avec lien vers la page détaillée
 - **Informations Système** : Liste des types de notifications et canaux
 
 **Fonctionnalités :**
 - Chargement automatique des données au démarrage
-- Actualisation en temps réel
+- Rafraîchissement automatique toutes les 5 secondes via `setInterval`
+- Mise en forme locale des dates et des durées
 
 #### 2. Configuration Retry (`config_retry.html`)
 
@@ -180,6 +207,14 @@ Utilisateur clique sur "Réinitialiser"
            → Mise à jour du formulaire
 ```
 
+### 4. Rafraîchissement des métriques
+
+```
+setInterval (5s) → GET /admin/api/status
+                 → Réception JSON (statut + configurations + métriques)
+                 → Mise à jour des cartes, du tableau et des listes
+```
+
 ---
 
 ## 📊 Format des Réponses API
@@ -224,10 +259,61 @@ Utilisateur clique sur "Réinitialiser"
     "canaux_disponibles": ["email", "sms", "app"],
     "templates_disponibles": ["default", "meteo", "securite", "sante", "infra"],
     "notificateurs_enregistres": 4,
-    "types_notifications": ["NotificationMeteorologique", ...]
+    "types_notifications": ["NotificationMeteorologique", "NotificationSecurite", ...]
   },
   "retry_config": {...},
-  "circuit_breaker_config": {...}
+  "circuit_breaker_config": {...},
+  "metrics": {
+    "global": {
+      "total_notifications": 12,
+      "total_success": 12,
+      "total_failure": 0,
+      "avg_duration": 0.124,
+      "last_notification_iso": "2025-11-13T05:07:12",
+      "success_rate": 1.0
+    },
+    "notifiers": {
+      "NotificationMeteorologique": {
+        "count": 4,
+        "success": 4,
+        "failure": 0,
+        "avg_duration": 0.110,
+        "min_duration": 0.096,
+        "max_duration": 0.128,
+        "last_timestamp_iso": "2025-11-13T05:07:12",
+        "success_rate": 1.0
+      }
+    }
+  }
+}
+```
+
+### GET /admin/api/metrics
+```json
+{
+  "success": true,
+  "metrics": {
+    "global": {
+      "total_notifications": 12,
+      "total_success": 12,
+      "total_failure": 0,
+      "avg_duration": 0.124,
+      "last_notification_iso": "2025-11-13T05:07:12",
+      "success_rate": 1.0
+    },
+    "notifiers": {
+      "NotificationMeteorologique": {
+        "count": 4,
+        "success": 4,
+        "failure": 0,
+        "avg_duration": 0.110,
+        "min_duration": 0.096,
+        "max_duration": 0.128,
+        "last_timestamp_iso": "2025-11-13T05:07:12",
+        "success_rate": 1.0
+      }
+    }
+  }
 }
 ```
 

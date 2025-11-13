@@ -35,6 +35,68 @@
     </div>
 </div>
 
+<!-- Métriques globales -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="metric-total">-</div>
+            <div class="stat-label">Notifications envoyées</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="metric-success-rate">-</div>
+            <div class="stat-label">Taux de succès</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="metric-avg-duration">-</div>
+            <div class="stat-label">Durée moyenne</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="metric-last-notification">-</div>
+            <div class="stat-label">Dernière notification</div>
+        </div>
+    </div>
+</div>
+
+<!-- Métriques par notificateur -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-graph-up"></i> Métriques par Notificateur</span>
+        <span class="badge bg-light text-dark" id="metrics-last-update">Dernière mise à jour : -</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Notificateur</th>
+                        <th>Total</th>
+                        <th>Succès</th>
+                        <th>Échecs</th>
+                        <th>Succès %</th>
+                        <th>Durée moyenne</th>
+                        <th>Min</th>
+                        <th>Max</th>
+                        <th>Dernière exécution</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="9" class="text-center text-muted">
+                            <i class="bi bi-hourglass-split"></i> En attente de données...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <!-- Configuration Retry -->
 <div class="card mb-4">
     <div class="card-header">
@@ -111,16 +173,17 @@
     // Charger les données au chargement de la page
     document.addEventListener('DOMContentLoaded', async function() {
         await loadDashboardData();
+        setInterval(loadDashboardData, 5000);
     });
     
     async function loadDashboardData() {
         try {
-            // Charger le statut système
             const statusResponse = await apiRequest('/admin/api/status');
             if (statusResponse.ok && statusResponse.data.success) {
                 const status = statusResponse.data.status;
                 const retryConfig = statusResponse.data.retry_config;
                 const cbConfig = statusResponse.data.circuit_breaker_config;
+                const metrics = statusResponse.data.metrics;
                 
                 // Mettre à jour les statistiques
                 document.getElementById('stat-notificateurs').textContent = status.notificateurs_enregistres;
@@ -138,24 +201,96 @@
                 document.getElementById('cb-cooldown').textContent = cbConfig.cooldown;
                 
                 // Mettre à jour les listes
-                const typesList = document.getElementById('types-list');
-                typesList.innerHTML = '';
-                status.types_notifications.forEach(type => {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<i class="bi bi-bell"></i> ${type}`;
-                    typesList.appendChild(li);
-                });
-                
-                const canauxList = document.getElementById('canaux-list');
-                canauxList.innerHTML = '';
-                status.canaux_disponibles.forEach(canal => {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<i class="bi bi-send"></i> ${canal}`;
-                    canauxList.appendChild(li);
-                });
+                updateList('types-list', status.types_notifications, 'bi-bell');
+                updateList('canaux-list', status.canaux_disponibles, 'bi-send');
+
+                if (metrics) {
+                    updateMetrics(metrics);
+                }
             }
         } catch (error) {
             showAlert('Erreur lors du chargement des données: ' + error.message, 'danger');
+        }
+    }
+
+    function updateList(elementId, items, icon) {
+        const list = document.getElementById(elementId);
+        list.innerHTML = '';
+        if (!items || items.length === 0) {
+            const li = document.createElement('li');
+            li.className = 'text-muted';
+            li.innerHTML = `<i class="bi bi-slash-circle"></i> Aucun élément`;
+            list.appendChild(li);
+            return;
+        }
+        items.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `<i class="bi ${icon}"></i> ${item}`;
+            list.appendChild(li);
+        });
+    }
+
+    function updateMetrics(metrics) {
+        const global = metrics.global || {};
+        const notifiers = metrics.notifiers || {};
+
+        document.getElementById('metric-total').textContent = global.total_notifications || 0;
+        document.getElementById('metric-success-rate').textContent = formatPercentage(global.success_rate);
+        document.getElementById('metric-avg-duration').textContent = formatDuration(global.avg_duration);
+        document.getElementById('metric-last-notification').textContent = formatDateTime(global.last_notification_iso);
+        document.getElementById('metrics-last-update').textContent = 'Dernière mise à jour : ' + formatDateTime(new Date().toISOString());
+
+        const tbody = document.querySelector('#metrics-table tbody');
+        tbody.innerHTML = '';
+
+        const notifierEntries = Object.entries(notifiers);
+        if (notifierEntries.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td colspan="9" class="text-center text-muted"><i class="bi bi-hourglass-split"></i> Aucune donnée disponible pour le moment</td>`;
+            tbody.appendChild(tr);
+            return;
+        }
+
+        notifierEntries.forEach(([name, data]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><i class="bi bi-bell-fill text-primary"></i> ${name}</td>
+                <td>${data.count}</td>
+                <td class="text-success">${data.success}</td>
+                <td class="text-danger">${data.failure}</td>
+                <td>${formatPercentage(data.success_rate)}</td>
+                <td>${formatDuration(data.avg_duration)}</td>
+                <td>${formatDuration(data.min_duration)}</td>
+                <td>${formatDuration(data.max_duration)}</td>
+                <td>${formatDateTime(data.last_timestamp_iso)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function formatPercentage(value) {
+        if (value === null || value === undefined) {
+            return '-';
+        }
+        return (value * 100).toFixed(1) + ' %';
+    }
+
+    function formatDuration(value) {
+        if (value === null || value === undefined) {
+            return '-';
+        }
+        return (value * 1000).toFixed(1) + ' ms';
+    }
+
+    function formatDateTime(value) {
+        if (!value) {
+            return '-';
+        }
+        try {
+            const date = new Date(value);
+            return date.toLocaleString();
+        } catch (error) {
+            return value;
         }
     }
 </script>

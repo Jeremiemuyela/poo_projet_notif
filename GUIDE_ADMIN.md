@@ -23,8 +23,9 @@ http://localhost:5000/admin/
 ## 📱 Pages Disponibles
 
 ### Tableau de Bord (`/admin/`)
-- Vue d'ensemble du système
-- Statistiques en temps réel
+- Vue d'ensemble du système (notificateurs, canaux, templates, configurations)
+- Métriques de performance en temps réel (totaux, taux de succès, durées)
+- Tableau détaillé par notificateur avec dernières exécutions
 - Accès rapide aux configurations
 
 ### Configuration Retry (`/admin/config/retry`)
@@ -43,6 +44,28 @@ http://localhost:5000/admin/
 - Liste des canaux disponibles
 - Liste des templates
 - Types de notifications enregistrés
+
+---
+
+## 📈 Métriques de Performance
+
+### Métriques globales
+- **Notifications envoyées** : total cumulé depuis le démarrage
+- **Taux de succès** : succès / total (actualisé toutes les 5 secondes)
+- **Durée moyenne** : moyenne des temps d'exécution (affichée en millisecondes)
+- **Dernière notification** : date/heure locale de la dernière exécution
+
+### Tableau par notificateur
+- Nombre total d'exécutions, succès et échecs
+- Taux de succès individuel
+- Durée moyenne, minimale et maximale
+- Timestamp de la dernière exécution
+- Mise en avant des échecs (nouvelle valeur `last_error` disponible via l'API)
+
+### Astuces
+- Surveillez les hausses de durée moyenne pour détecter les lenteurs
+- Les échecs successifs peuvent indiquer l'ouverture du circuit breaker
+- Utilisez la section Statut pour vérifier les canaux/templates disponibles
 
 ---
 
@@ -180,7 +203,10 @@ http://localhost:5000/admin/
 - `POST /admin/api/config/circuit-breaker/reset` - Réinitialiser
 
 ### Statut
-- `GET /admin/api/status` - Récupérer le statut complet
+- `GET /admin/api/status` - Récupérer le statut complet (configurations + métriques)
+
+### Métriques
+- `GET /admin/api/metrics` - Récupérer uniquement les métriques globales et par notificateur
 
 ---
 

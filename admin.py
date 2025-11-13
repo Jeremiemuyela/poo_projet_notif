@@ -1,9 +1,11 @@
 """
 Module d'administration - Interface de configuration système
 """
+from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify
 from typing import Dict, Any, Optional
 import projetnotif as notif
+from metrics import metrics_manager
 
 # Créer un Blueprint pour l'administration
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin', template_folder='templates')
@@ -46,6 +48,34 @@ def get_system_status() -> Dict[str, Any]:
         "templates_disponibles": list(templates.keys()),
         "notificateurs_enregistres": len(notificateurs),
         "types_notifications": [cls.__name__ for cls in registry.get("notification_types", [])]
+    }
+
+
+def format_timestamp(timestamp: Optional[float]) -> Optional[str]:
+    if timestamp is None:
+        return None
+    return datetime.fromtimestamp(timestamp).isoformat(timespec='seconds')
+
+
+def get_metrics_summary() -> Dict[str, Any]:
+    summary = metrics_manager.get_summary()
+
+    global_data = summary.get("global", {})
+    global_data["last_notification_iso"] = format_timestamp(global_data.get("last_notification"))
+
+    formatted_notifiers = {}
+    for name, data in summary.get("notifiers", {}).items():
+        formatted_notifiers[name] = {
+            **data,
+            "success_rate": (
+                data["success"] / data["count"] if data.get("count") else None
+            ),
+            "last_timestamp_iso": format_timestamp(data.get("last_timestamp")),
+        }
+
+    return {
+        "global": global_data,
+        "notifiers": formatted_notifiers,
     }
 
 
@@ -271,14 +301,32 @@ def get_system_status_api():
         status = get_system_status()
         retry_config = get_retry_config()
         cb_config = get_circuit_breaker_config()
-        
+        metrics_summary = get_metrics_summary()
+
         return jsonify({
             "success": True,
             "status": status,
             "retry_config": retry_config,
-            "circuit_breaker_config": cb_config
+            "circuit_breaker_config": cb_config,
+            "metrics": metrics_summary
         }), 200
         
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@admin_bp.route('/api/metrics', methods=['GET'])
+def get_metrics_api():
+    """API: Récupère les métriques de performance."""
+    try:
+        metrics_summary = get_metrics_summary()
+        return jsonify({
+            "success": True,
+            "metrics": metrics_summary
+        }), 200
     except Exception as e:
         return jsonify({
             "success": False,
