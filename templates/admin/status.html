@@ -1,0 +1,205 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Statut Système - Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-activity"></i> Statut du Système</h1>
+    <button class="btn btn-outline-primary" onclick="refreshStatus()">
+        <i class="bi bi-arrow-clockwise"></i> Actualiser
+    </button>
+</div>
+
+<!-- Vue d'ensemble -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="stat-notificateurs">-</div>
+            <div class="stat-label">Notificateurs</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="stat-canaux">-</div>
+            <div class="stat-label">Canaux</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="stat-templates">-</div>
+            <div class="stat-label">Templates</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-value" id="stat-configs">-</div>
+            <div class="stat-label">Configurations</div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Retry -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-arrow-repeat"></i> Configuration Retry Actuelle
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <strong>Tentatives:</strong> <span id="retry-attempts">-</span>
+            </div>
+            <div class="col-md-4">
+                <strong>Délai:</strong> <span id="retry-delay">-</span>s
+            </div>
+            <div class="col-md-4">
+                <strong>Backoff:</strong> <span id="retry-backoff">-</span>
+            </div>
+        </div>
+        <div class="mt-3">
+            <a href="{{ url_for('admin.config_retry_page') }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-pencil"></i> Modifier
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Circuit Breaker -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-lightning-charge"></i> Configuration Circuit Breaker Actuelle
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Seuil:</strong> <span id="cb-threshold">-</span> échecs
+            </div>
+            <div class="col-md-6">
+                <strong>Cooldown:</strong> <span id="cb-cooldown">-</span>s
+            </div>
+        </div>
+        <div class="mt-3">
+            <a href="{{ url_for('admin.config_circuit_breaker_page') }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-pencil"></i> Modifier
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Types de Notifications -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-bell"></i> Types de Notifications Enregistrés
+    </div>
+    <div class="card-body">
+        <ul id="types-list" class="list-group list-group-flush">
+            <li class="list-group-item"><i class="bi bi-hourglass-split"></i> Chargement...</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Canaux Disponibles -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-send"></i> Canaux de Notification Disponibles
+    </div>
+    <div class="card-body">
+        <div class="row" id="canaux-list">
+            <div class="col-md-12"><i class="bi bi-hourglass-split"></i> Chargement...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Templates Disponibles -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-file-text"></i> Templates Disponibles
+    </div>
+    <div class="card-body">
+        <ul id="templates-list" class="list-group list-group-flush">
+            <li class="list-group-item"><i class="bi bi-hourglass-split"></i> Chargement...</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Charger le statut au chargement de la page
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadStatus();
+    });
+    
+    async function loadStatus() {
+        try {
+            const response = await apiRequest('/admin/api/status');
+            if (response.ok && response.data.success) {
+                const status = response.data.status;
+                const retryConfig = response.data.retry_config;
+                const cbConfig = response.data.circuit_breaker_config;
+                
+                // Mettre à jour les statistiques
+                document.getElementById('stat-notificateurs').textContent = status.notificateurs_enregistres;
+                document.getElementById('stat-canaux').textContent = status.canaux_disponibles.length;
+                document.getElementById('stat-templates').textContent = status.templates_disponibles.length;
+                document.getElementById('stat-configs').textContent = status.configs_actives.length;
+                
+                // Mettre à jour la config retry
+                document.getElementById('retry-attempts').textContent = retryConfig.attempts;
+                document.getElementById('retry-delay').textContent = retryConfig.delay;
+                document.getElementById('retry-backoff').textContent = retryConfig.backoff;
+                
+                // Mettre à jour la config circuit breaker
+                document.getElementById('cb-threshold').textContent = cbConfig.threshold;
+                document.getElementById('cb-cooldown').textContent = cbConfig.cooldown;
+                
+                // Mettre à jour les types de notifications
+                const typesList = document.getElementById('types-list');
+                typesList.innerHTML = '';
+                status.types_notifications.forEach(type => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.innerHTML = `<i class="bi bi-bell-fill text-primary"></i> ${type}`;
+                    typesList.appendChild(li);
+                });
+                
+                // Mettre à jour les canaux
+                const canauxList = document.getElementById('canaux-list');
+                canauxList.innerHTML = '';
+                status.canaux_disponibles.forEach(canal => {
+                    const col = document.createElement('div');
+                    col.className = 'col-md-4 mb-2';
+                    col.innerHTML = `
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-send-fill text-success" style="font-size: 2rem;"></i>
+                                <h6 class="mt-2">${canal.toUpperCase()}</h6>
+                            </div>
+                        </div>
+                    `;
+                    canauxList.appendChild(col);
+                });
+                
+                // Mettre à jour les templates
+                const templatesList = document.getElementById('templates-list');
+                templatesList.innerHTML = '';
+                status.templates_disponibles.forEach(template => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.innerHTML = `<i class="bi bi-file-text-fill text-info"></i> ${template}`;
+                    templatesList.appendChild(li);
+                });
+            } else {
+                showAlert('Erreur lors du chargement du statut', 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    function refreshStatus() {
+        loadStatus();
+        showAlert('Statut actualisé', 'success');
+    }
+</script>
+{% endblock %}
+

@@ -1,0 +1,158 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Configuration Retry - Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-arrow-repeat"></i> Configuration Retry</h1>
+    <button class="btn btn-outline-secondary" onclick="resetToDefaults()">
+        <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-gear"></i> Paramètres du Mécanisme de Retry
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-4">
+            Le mécanisme de retry permet de réessayer automatiquement l'envoi de notifications en cas d'échec.
+            Configurez le nombre de tentatives, le délai initial et le facteur de backoff exponentiel.
+        </p>
+        
+        <form id="retry-config-form">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="attempts" class="form-label">
+                        <i class="bi bi-123"></i> Nombre de Tentatives
+                    </label>
+                    <input type="number" class="form-control" id="attempts" name="attempts" min="1" required>
+                    <small class="text-muted">Nombre de fois que le système réessayera en cas d'échec (minimum: 1)</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="delay" class="form-label">
+                        <i class="bi bi-clock"></i> Délai Initial (secondes)
+                    </label>
+                    <input type="number" class="form-control" id="delay" name="delay" min="0" step="0.1" required>
+                    <small class="text-muted">Temps d'attente avant la première nouvelle tentative</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="backoff" class="form-label">
+                        <i class="bi bi-graph-up"></i> Facteur de Backoff
+                    </label>
+                    <input type="number" class="form-control" id="backoff" name="backoff" min="1" step="0.1" required>
+                    <small class="text-muted">Facteur multiplicateur pour augmenter le délai entre chaque tentative</small>
+                </div>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> <strong>Exemple:</strong> 
+                Avec attempts=3, delay=1s, backoff=2, les tentatives auront lieu après 1s, 2s, 4s.
+            </div>
+            
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> Enregistrer les Modifications
+                </button>
+                <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Retour
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Valeurs par défaut -->
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-bookmark"></i> Valeurs par Défaut
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <strong>Tentatives:</strong> <span id="default-attempts">-</span>
+            </div>
+            <div class="col-md-4">
+                <strong>Délai:</strong> <span id="default-delay">-</span>s
+            </div>
+            <div class="col-md-4">
+                <strong>Backoff:</strong> <span id="default-backoff">-</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Charger la configuration au chargement de la page
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadRetryConfig();
+    });
+    
+    async function loadRetryConfig() {
+        try {
+            const response = await apiRequest('/admin/api/config/retry');
+            if (response.ok && response.data.success) {
+                const config = response.data.config;
+                
+                // Remplir le formulaire
+                document.getElementById('attempts').value = config.attempts;
+                document.getElementById('delay').value = config.delay;
+                document.getElementById('backoff').value = config.backoff;
+                
+                // Afficher les valeurs par défaut
+                document.getElementById('default-attempts').textContent = config.defaults.attempts;
+                document.getElementById('default-delay').textContent = config.defaults.delay;
+                document.getElementById('default-backoff').textContent = config.defaults.backoff;
+            } else {
+                showAlert('Erreur lors du chargement de la configuration', 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    // Gérer la soumission du formulaire
+    document.getElementById('retry-config-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            attempts: parseInt(document.getElementById('attempts').value),
+            delay: parseFloat(document.getElementById('delay').value),
+            backoff: parseFloat(document.getElementById('backoff').value)
+        };
+        
+        try {
+            const response = await apiRequest('/admin/api/config/retry', 'POST', formData);
+            if (response.ok && response.data.success) {
+                showAlert('Configuration retry mise à jour avec succès!', 'success');
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    });
+    
+    // Réinitialiser aux valeurs par défaut
+    async function resetToDefaults() {
+        if (!confirm('Êtes-vous sûr de vouloir réinitialiser la configuration aux valeurs par défaut?')) {
+            return;
+        }
+        
+        try {
+            const response = await apiRequest('/admin/api/config/retry/reset', 'POST');
+            if (response.ok && response.data.success) {
+                showAlert('Configuration réinitialisée avec succès!', 'success');
+                await loadRetryConfig();
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+</script>
+{% endblock %}
+

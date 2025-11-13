@@ -1,0 +1,111 @@
+{
+  "commentaire": "Exemples de requêtes JSON pour tester l'API RESTful",
+  
+  "exemple_meteo": {
+    "titre": "alerte_meteo",
+    "message": "Tempête prévue ce soir avec vents violents",
+    "priorite": "HAUTE",
+    "utilisateurs": [
+      {
+        "id": "etudiant1",
+        "nom": "Jean Dupont",
+        "email": "jean@univ.fr",
+        "langue": "fr",
+        "telephone": "+33123456789",
+        "preferences": {
+          "canal_prefere": "email",
+          "actif": true
+        }
+      },
+      {
+        "id": "etudiant2",
+        "nom": "Marie Martin",
+        "email": "marie@univ.fr",
+        "langue": "fr",
+        "telephone": "+33698765432",
+        "preferences": {
+          "canal_prefere": "sms",
+          "actif": true
+        }
+      }
+    ]
+  },
+
+  "exemple_securite": {
+    "titre": "alerte_securite",
+    "message": "ÉVACUATION IMMÉDIATE - Veuillez quitter le bâtiment",
+    "priorite": "CRITIQUE",
+    "utilisateurs": [
+      {
+        "id": "etudiant1",
+        "nom": "Jean Dupont",
+        "email": "jean@univ.fr",
+        "langue": "fr",
+        "telephone": "+33123456789",
+        "preferences": {
+          "canal_prefere": "sms",
+          "actif": true
+        }
+      },
+      {
+        "id": "etudiant3",
+        "nom": "John Smith",
+        "email": "john@univ.fr",
+        "langue": "en",
+        "telephone": "+447900123456",
+        "preferences": {
+          "canal_prefere": "app",
+          "actif": true
+        }
+      }
+    ]
+  },
+
+  "exemple_sante": {
+    "titre": "alerte_sante",
+    "message": "Campagne de vaccination disponible cette semaine. Rendez-vous sur le site web.",
+    "priorite": "NORMALE",
+    "utilisateurs": [
+      {
+        "id": "etudiant1",
+        "nom": "Jean Dupont",
+        "email": "jean@univ.fr",
+        "langue": "fr",
+        "preferences": {
+          "canal_prefere": "email",
+          "actif": true
+        }
+      }
+    ]
+  },
+
+  "exemple_infra": {
+    "titre": "alerte_infra",
+    "message": "Coupure d'eau prévue demain de 8h à 12h sur le campus nord",
+    "priorite": "HAUTE",
+    "utilisateurs": [
+      {
+        "id": "etudiant2",
+        "nom": "Marie Martin",
+        "email": "marie@univ.fr",
+        "langue": "fr",
+        "telephone": "+33698765432",
+        "preferences": {
+          "canal_prefere": "sms",
+          "actif": true
+        }
+      },
+      {
+        "id": "etudiant3",
+        "nom": "John Smith",
+        "email": "john@univ.fr",
+        "langue": "en",
+        "preferences": {
+          "canal_prefere": "app",
+          "actif": true
+        }
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,145 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Configuration Circuit Breaker - Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-lightning-charge"></i> Configuration Circuit Breaker</h1>
+    <button class="btn btn-outline-secondary" onclick="resetToDefaults()">
+        <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-shield-exclamation"></i> Paramètres du Circuit Breaker
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-4">
+            Le circuit breaker protège le système en interrompant temporairement les tentatives d'envoi 
+            après un certain nombre d'échecs consécutifs. Cela évite de surcharger le système en cas de panne.
+        </p>
+        
+        <form id="cb-config-form">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="threshold" class="form-label">
+                        <i class="bi bi-exclamation-triangle"></i> Seuil d'Échecs
+                    </label>
+                    <input type="number" class="form-control" id="threshold" name="threshold" min="1" required>
+                    <small class="text-muted">Nombre d'échecs consécutifs avant d'ouvrir le circuit (minimum: 1)</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="cooldown" class="form-label">
+                        <i class="bi bi-hourglass-split"></i> Temps de Cooldown (secondes)
+                    </label>
+                    <input type="number" class="form-control" id="cooldown" name="cooldown" min="0" step="0.1" required>
+                    <small class="text-muted">Temps d'attente avant de réessayer après l'ouverture du circuit</small>
+                </div>
+            </div>
+            
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> <strong>Attention:</strong> 
+                Quand le circuit est ouvert, toutes les nouvelles tentatives sont bloquées pendant le temps de cooldown.
+            </div>
+            
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> Enregistrer les Modifications
+                </button>
+                <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Retour
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Valeurs par défaut -->
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-bookmark"></i> Valeurs par Défaut
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Seuil:</strong> <span id="default-threshold">-</span> échecs
+            </div>
+            <div class="col-md-6">
+                <strong>Cooldown:</strong> <span id="default-cooldown">-</span>s
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Charger la configuration au chargement de la page
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadCircuitBreakerConfig();
+    });
+    
+    async function loadCircuitBreakerConfig() {
+        try {
+            const response = await apiRequest('/admin/api/config/circuit-breaker');
+            if (response.ok && response.data.success) {
+                const config = response.data.config;
+                
+                // Remplir le formulaire
+                document.getElementById('threshold').value = config.threshold;
+                document.getElementById('cooldown').value = config.cooldown;
+                
+                // Afficher les valeurs par défaut
+                document.getElementById('default-threshold').textContent = config.defaults.threshold;
+                document.getElementById('default-cooldown').textContent = config.defaults.cooldown;
+            } else {
+                showAlert('Erreur lors du chargement de la configuration', 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    // Gérer la soumission du formulaire
+    document.getElementById('cb-config-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            threshold: parseInt(document.getElementById('threshold').value),
+            cooldown: parseFloat(document.getElementById('cooldown').value)
+        };
+        
+        try {
+            const response = await apiRequest('/admin/api/config/circuit-breaker', 'POST', formData);
+            if (response.ok && response.data.success) {
+                showAlert('Configuration circuit breaker mise à jour avec succès!', 'success');
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    });
+    
+    // Réinitialiser aux valeurs par défaut
+    async function resetToDefaults() {
+        if (!confirm('Êtes-vous sûr de vouloir réinitialiser la configuration aux valeurs par défaut?')) {
+            return;
+        }
+        
+        try {
+            const response = await apiRequest('/admin/api/config/circuit-breaker/reset', 'POST');
+            if (response.ok && response.data.success) {
+                showAlert('Configuration réinitialisée avec succès!', 'success');
+                await loadCircuitBreakerConfig();
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+</script>
+{% endblock %}
+
