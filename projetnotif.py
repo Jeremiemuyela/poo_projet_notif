@@ -100,6 +100,51 @@ class PhoneDescriptor:
         setattr(instance, self._storage_name, value)
 
 
+class StudentIdDescriptor:
+    """Valide l'identifiant unique des étudiants."""
+    _pattern = re.compile(r"^[a-z0-9_-]{5,20}$", re.IGNORECASE)
+
+    def __set_name__(self, owner, name):
+        self._storage_name = f"_{name}"
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return getattr(instance, self._storage_name, None)
+
+    def __set__(self, instance, value):
+        if not isinstance(value, str):
+            raise TypeError("L'identifiant étudiant doit être une chaîne de caractères.")
+        value = value.strip()
+        if not self._pattern.fullmatch(value):
+            raise ValueError("Identifiant étudiant invalide (lettres, chiffres, -, _ entre 5 et 20 caractères).")
+        setattr(instance, self._storage_name, value)
+
+
+class PreferredLanguageDescriptor:
+    """Valide la langue préférée au format code ISO (ex: fr, en)."""
+    _allowed = {"fr", "en", "es", "de", "it"}
+
+    def __set_name__(self, owner, name):
+        self._storage_name = f"_{name}"
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return getattr(instance, self._storage_name, None)
+
+    def __set__(self, instance, value):
+        if value is None:
+            setattr(instance, self._storage_name, None)
+            return
+        if not isinstance(value, str):
+            raise TypeError("La langue préférée doit être une chaîne de caractères.")
+        value = value.strip().lower()
+        if value not in self._allowed:
+            raise ValueError(f"Langue préférée invalide: {value}. Valeurs autorisées: {', '.join(sorted(self._allowed))}")
+        setattr(instance, self._storage_name, value)
+
+
 # ==================== MÉTACLASSES ====================
 
 
@@ -197,8 +242,10 @@ class CircuitBreakerConfig(metaclass=ConfigMeta):
 
 class Utilisateur:
     """Représente un utilisateur (étudiant)."""
+    id = StudentIdDescriptor()
     email = EmailDescriptor()
     telephone = PhoneDescriptor()
+    langue_preferee = PreferredLanguageDescriptor()
 
     def __init__(
         self,
@@ -207,12 +254,14 @@ class Utilisateur:
         email: str,
         langue: Langue = Langue.FR,
         telephone: Optional[str] = None,
+        langue_preferee: Optional[str] = None,
     ):
         self.id = id
         self.nom = nom
         self.email = email
         self.langue = langue
         self.telephone = telephone
+        self.langue_preferee = langue_preferee
 
 
 class Preferences:
@@ -678,9 +727,9 @@ def main():
     }
 
     # Créer des utilisateurs
-    user1 = Utilisateur("etudiant1", "Jean Dupont", "jean@univ.fr", Langue.FR, telephone="+33123456789")
-    user2 = Utilisateur("etudiant2", "Marie Martin", "marie@univ.fr", Langue.FR, telephone="+33698765432")
-    user3 = Utilisateur("etudiant3", "John Smith", "john@univ.fr", Langue.EN, telephone="+447900123456")
+    user1 = Utilisateur("etudiant1", "Jean Dupont", "jean@univ.fr", Langue.FR, telephone="+33123456789", langue_preferee="fr")
+    user2 = Utilisateur("etudiant2", "Marie Martin", "marie@univ.fr", Langue.FR, telephone="+33698765432", langue_preferee="fr")
+    user3 = Utilisateur("etudiant3", "John Smith", "john@univ.fr", Langue.EN, telephone="+447900123456", langue_preferee="en")
 
     # Configurer les préférences
     prefs_store.sauvegarder(user1.id, Preferences(canal_prefere="email"))

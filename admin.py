@@ -2,10 +2,14 @@
 Module d'administration - Interface de configuration système
 """
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from typing import Dict, Any, Optional
 import projetnotif as notif
 from metrics import metrics_manager
+from auth import (
+    authenticate_user, require_auth, require_role, require_permission,
+    load_users, create_user, ROLES
+)
 
 # Créer un Blueprint pour l'administration
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin', template_folder='templates')
@@ -81,25 +85,65 @@ def get_metrics_summary() -> Dict[str, Any]:
 
 # ==================== ROUTES PAGES HTML ====================
 
+@admin_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    """Page de connexion."""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            return render_template('admin/login.html', error="Nom d'utilisateur et mot de passe requis")
+        
+        user = authenticate_user(username, password)
+        if user:
+            session['user'] = {
+                'username': user['username'],
+                'role': user['role']
+            }
+            return redirect(url_for('admin.index'))
+        else:
+            return render_template('admin/login.html', error="Nom d'utilisateur ou mot de passe incorrect")
+    
+    # Si déjà connecté, rediriger vers le tableau de bord
+    if 'user' in session:
+        return redirect(url_for('admin.index'))
+    
+    return render_template('admin/login.html')
+
+
+@admin_bp.route('/logout')
+def logout():
+    """Déconnexion."""
+    session.pop('user', None)
+    return redirect(url_for('admin.login'))
+
+
 @admin_bp.route('/')
+@require_auth
 def index():
     """Page d'accueil de l'interface d'administration."""
     return render_template('admin/index.html')
 
 
 @admin_bp.route('/config/retry')
+@require_auth
+@require_role('admin', 'operator')
 def config_retry_page():
     """Page de configuration du retry."""
     return render_template('admin/config_retry.html')
 
 
 @admin_bp.route('/config/circuit-breaker')
+@require_auth
+@require_role('admin', 'operator')
 def config_circuit_breaker_page():
     """Page de configuration du circuit breaker."""
     return render_template('admin/config_circuit_breaker.html')
 
 
 @admin_bp.route('/status')
+@require_auth
 def status_page():
     """Page de statut du système."""
     return render_template('admin/status.html')
@@ -108,6 +152,7 @@ def status_page():
 # ==================== ENDPOINTS API ====================
 
 @admin_bp.route('/api/config/retry', methods=['GET'])
+@require_auth
 def get_retry_config_api():
     """API: Récupère la configuration du retry."""
     try:
@@ -124,6 +169,8 @@ def get_retry_config_api():
 
 
 @admin_bp.route('/api/config/retry', methods=['POST'])
+@require_auth
+@require_role('admin', 'operator')
 def update_retry_config_api():
     """API: Met à jour la configuration du retry."""
     try:
@@ -183,6 +230,8 @@ def update_retry_config_api():
 
 
 @admin_bp.route('/api/config/retry/reset', methods=['POST'])
+@require_auth
+@require_role('admin')
 def reset_retry_config_api():
     """API: Réinitialise la configuration du retry aux valeurs par défaut."""
     try:
@@ -206,6 +255,7 @@ def reset_retry_config_api():
 
 
 @admin_bp.route('/api/config/circuit-breaker', methods=['GET'])
+@require_auth
 def get_circuit_breaker_config_api():
     """API: Récupère la configuration du circuit breaker."""
     try:
@@ -222,6 +272,8 @@ def get_circuit_breaker_config_api():
 
 
 @admin_bp.route('/api/config/circuit-breaker', methods=['POST'])
+@require_auth
+@require_role('admin', 'operator')
 def update_circuit_breaker_config_api():
     """API: Met à jour la configuration du circuit breaker."""
     try:
@@ -272,6 +324,8 @@ def update_circuit_breaker_config_api():
 
 
 @admin_bp.route('/api/config/circuit-breaker/reset', methods=['POST'])
+@require_auth
+@require_role('admin')
 def reset_circuit_breaker_config_api():
     """API: Réinitialise la configuration du circuit breaker aux valeurs par défaut."""
     try:
@@ -295,6 +349,7 @@ def reset_circuit_breaker_config_api():
 
 
 @admin_bp.route('/api/status', methods=['GET'])
+@require_auth
 def get_system_status_api():
     """API: Récupère le statut général du système."""
     try:
@@ -319,6 +374,7 @@ def get_system_status_api():
 
 
 @admin_bp.route('/api/metrics', methods=['GET'])
+@require_auth
 def get_metrics_api():
     """API: Récupère les métriques de performance."""
     try:
@@ -327,6 +383,84 @@ def get_metrics_api():
             "success": True,
             "metrics": metrics_summary
         }), 200
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ==================== GESTION DES UTILISATEURS ====================
+
+@admin_bp.route('/api/users', methods=['GET'])
+@require_auth
+@require_role('admin')
+def list_users_api():
+    """API: Liste tous les utilisateurs (admin uniquement)."""
+    try:
+        users = load_users()
+        # Ne pas exposer les mots de passe
+        safe_users = {}
+        for username, user in users.items():
+            safe_users[username] = {
+                "username": user.get("username"),
+                "role": user.get("role"),
+                "active": user.get("active", True),
+                "has_api_key": bool(user.get("api_key"))
+            }
+        
+        return jsonify({
+            "success": True,
+            "users": safe_users,
+            "roles": {role: data["description"] for role, data in ROLES.items()}
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@admin_bp.route('/api/users', methods=['POST'])
+@require_auth
+@require_role('admin')
+def create_user_api():
+    """API: Crée un nouvel utilisateur (admin uniquement)."""
+    try:
+        if not request.is_json:
+            return jsonify({
+                "success": False,
+                "error": "Le contenu doit être au format JSON"
+            }), 400
+        
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
+        role = data.get("role", "viewer")
+        
+        if not username or not password:
+            return jsonify({
+                "success": False,
+                "error": "Le nom d'utilisateur et le mot de passe sont requis"
+            }), 400
+        
+        user = create_user(username, password, role)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Utilisateur '{username}' créé avec succès",
+            "user": {
+                "username": user["username"],
+                "role": user["role"],
+                "api_key": user["api_key"]
+            }
+        }), 201
+        
+    except ValueError as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
     except Exception as e:
         return jsonify({
             "success": False,

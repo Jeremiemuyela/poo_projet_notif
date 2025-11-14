@@ -1,15 +1,20 @@
 """
 Application Flask - API RESTful pour le système de notification d'urgence
 """
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from typing import Dict, List, Any, Optional
 import projetnotif as notif
 from admin import admin_bp
+from auth import init_default_users, require_auth
 
 # ==================== INITIALISATION FLASK ====================
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False  # Pour supporter les caractères français
+app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'  # À changer en production !
+
+# Initialiser les utilisateurs par défaut
+init_default_users()
 
 # Enregistrer le Blueprint d'administration
 app.register_blueprint(admin_bp)
@@ -254,6 +259,7 @@ def envoyer_notification_meteo():
 
 
 @app.route('/api/notifications/securite', methods=['POST'])
+@require_auth
 def envoyer_notification_securite():
     """
     Endpoint pour envoyer une notification de sécurité.
@@ -316,6 +322,7 @@ def envoyer_notification_securite():
 
 
 @app.route('/api/notifications/sante', methods=['POST'])
+@require_auth
 def envoyer_notification_sante():
     """
     Endpoint pour envoyer une notification de santé.
@@ -377,6 +384,7 @@ def envoyer_notification_sante():
 
 
 @app.route('/api/notifications/infra', methods=['POST'])
+@require_auth
 def envoyer_notification_infra():
     """
     Endpoint pour envoyer une notification d'infrastructure.
