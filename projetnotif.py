@@ -455,8 +455,8 @@ class Email(CanalBase):
     """Canal email."""
     @log_action
     def livrer(self, message: Message) -> bool:
-        """Livre un message par email."""
-        print(f"[EMAIL] Envoi à {message.utilisateur.email}")
+        """Livre un message par email (mode test)."""
+        print(f"[EMAIL] [TEST] Envoi à {message.utilisateur.email}")
         print(f"       Sujet: {message.charge.get('titre', 'Sans titre')}")
         print(f"       Message: {message.charge.get('message', '')}")
         return True

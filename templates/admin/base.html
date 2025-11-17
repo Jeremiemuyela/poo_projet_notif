@@ -137,12 +137,11 @@
                         <a class="nav-link {% if request.endpoint == 'admin.status_page' %}active{% endif %}" href="{{ url_for('admin.status_page') }}">
                             <i class="bi bi-activity"></i> Statut Système
                         </a>
-                        <hr class="text-white-50 my-3">
-                        <a class="nav-link" href="/api/health" target="_blank">
-                            <i class="bi bi-heart-pulse"></i> API Health
+                        <a class="nav-link {% if request.endpoint == 'admin.queue_page' %}active{% endif %}" href="{{ url_for('admin.queue_page') }}">
+                            <i class="bi bi-list-queue"></i> Files d'Attente
                         </a>
-                        <a class="nav-link" href="/api/notifications/types" target="_blank">
-                            <i class="bi bi-list-ul"></i> Types Notifications
+                        <a class="nav-link {% if request.endpoint == 'admin.send_notification_page' %}active{% endif %}" href="{{ url_for('admin.send_notification_page') }}">
+                            <i class="bi bi-send"></i> Envoyer Notification
                         </a>
                         {% if session.user %}
                         <hr class="text-white-50 my-3">

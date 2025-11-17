@@ -1,0 +1,284 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Envoyer une Notification - Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-send"></i> Envoyer une Notification</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-bell"></i> Formulaire d'Envoi
+    </div>
+    <div class="card-body">
+        <form id="send-notification-form">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="type" class="form-label">
+                        <i class="bi bi-tag"></i> Type de Notification <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" id="type" name="type" required>
+                        <option value="">-- Sélectionner un type --</option>
+                        <option value="meteo">🌦️ Météo</option>
+                        <option value="securite">🚨 Sécurité</option>
+                        <option value="sante">🏥 Santé</option>
+                        <option value="infra">🏗️ Infrastructure</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="priorite" class="form-label">
+                        <i class="bi bi-exclamation-triangle"></i> Priorité
+                    </label>
+                    <select class="form-select" id="priorite" name="priorite">
+                        <option value="NORMALE">Normale</option>
+                        <option value="HAUTE">Haute</option>
+                        <option value="CRITIQUE">Critique</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="titre" class="form-label">
+                    <i class="bi bi-type"></i> Titre <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="titre" name="titre" placeholder="alerte_meteo" required>
+                <small class="text-muted">Clé de traduction (ex: alerte_meteo, alerte_securite)</small>
+            </div>
+            
+            <div class="mb-3">
+                <label for="message" class="form-label">
+                    <i class="bi bi-chat-text"></i> Message <span class="text-danger">*</span>
+                </label>
+                <textarea class="form-control" id="message" name="message" rows="4" placeholder="Votre message d'urgence..." required></textarea>
+            </div>
+            
+            <hr>
+            
+            <h5 class="mb-3"><i class="bi bi-people"></i> Destinataires</h5>
+            
+            <!-- Filtrage par faculté et promotion -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">
+                        <i class="bi bi-building"></i> Facultés
+                    </label>
+                    <div id="faculties-container" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Les facultés seront chargées dynamiquement -->
+                    </div>
+                    <small class="text-muted">Sélectionnez les facultés (laisser vide pour toutes)</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">
+                        <i class="bi bi-mortarboard"></i> Promotions
+                    </label>
+                    <div id="promotions-container" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Les promotions seront chargées dynamiquement -->
+                    </div>
+                    <small class="text-muted">Sélectionnez les promotions (laisser vide pour toutes)</small>
+                </div>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> <strong>Note :</strong>
+                Si aucune faculté ni promotion n'est sélectionnée, la notification sera envoyée à <strong>tous les étudiants actifs</strong>.
+            </div>
+            
+            <div class="d-flex gap-2 mb-3">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllFaculties()">
+                    <i class="bi bi-check-all"></i> Tout sélectionner (Facultés)
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllFaculties()">
+                    <i class="bi bi-x-square"></i> Tout désélectionner (Facultés)
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllPromotions()">
+                    <i class="bi bi-check-all"></i> Tout sélectionner (Promotions)
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllPromotions()">
+                    <i class="bi bi-x-square"></i> Tout désélectionner (Promotions)
+                </button>
+            </div>
+            
+            <hr>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                    <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-send"></i> Envoyer la Notification
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Résultat -->
+<div id="result-container" class="mt-4" style="display: none;">
+    <div class="card">
+        <div class="card-header">
+            <i class="bi bi-check-circle"></i> Résultat
+        </div>
+        <div class="card-body" id="result-content">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let facultiesData = {};
+    
+    // Charger les facultés au chargement de la page
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadFaculties();
+    });
+    
+    async function loadFaculties() {
+        try {
+            const response = await apiRequest('/admin/api/students/faculties');
+            if (response.ok && response.data.success) {
+                facultiesData = response.data.faculties_details;
+                renderFaculties();
+                renderPromotions();
+            } else {
+                showAlert('Erreur lors du chargement des facultés', 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    function renderFaculties() {
+        const container = document.getElementById('faculties-container');
+        container.innerHTML = '';
+        
+        for (const [faculty, promotions] of Object.entries(facultiesData)) {
+            const div = document.createElement('div');
+            div.className = 'form-check';
+            div.innerHTML = `
+                <input class="form-check-input faculty-checkbox" type="checkbox" 
+                       value="${faculty}" id="faculty-${faculty.replace(/\s+/g, '-')}">
+                <label class="form-check-label" for="faculty-${faculty.replace(/\s+/g, '-')}">
+                    ${faculty}
+                </label>
+            `;
+            container.appendChild(div);
+        }
+    }
+    
+    function renderPromotions() {
+        const container = document.getElementById('promotions-container');
+        container.innerHTML = '';
+        
+        // Collecter toutes les promotions uniques
+        const allPromotions = new Set();
+        for (const promotions of Object.values(facultiesData)) {
+            promotions.forEach(p => allPromotions.add(p));
+        }
+        
+        const order = ['Prepa', 'L1', 'L2', 'L3', 'L4', 'M1', 'M2', 'D1', 'D2', 'D3'];
+        const sortedPromotions = Array.from(allPromotions).sort((a, b) => {
+            const indexA = order.indexOf(a);
+            const indexB = order.indexOf(b);
+            return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+        });
+        
+        for (const promotion of sortedPromotions) {
+            const div = document.createElement('div');
+            div.className = 'form-check';
+            div.innerHTML = `
+                <input class="form-check-input promotion-checkbox" type="checkbox" 
+                       value="${promotion}" id="promotion-${promotion}">
+                <label class="form-check-label" for="promotion-${promotion}">
+                    ${promotion}
+                </label>
+            `;
+            container.appendChild(div);
+        }
+    }
+    
+    function selectAllFaculties() {
+        document.querySelectorAll('.faculty-checkbox').forEach(cb => cb.checked = true);
+    }
+    
+    function deselectAllFaculties() {
+        document.querySelectorAll('.faculty-checkbox').forEach(cb => cb.checked = false);
+    }
+    
+    function selectAllPromotions() {
+        document.querySelectorAll('.promotion-checkbox').forEach(cb => cb.checked = true);
+    }
+    
+    function deselectAllPromotions() {
+        document.querySelectorAll('.promotion-checkbox').forEach(cb => cb.checked = false);
+    }
+    
+    function resetForm() {
+        document.getElementById('send-notification-form').reset();
+        document.getElementById('result-container').style.display = 'none';
+        
+        // Décocher toutes les cases
+        document.querySelectorAll('.faculty-checkbox, .promotion-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+    }
+    
+    document.getElementById('send-notification-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Construire le JSON
+        const formData = {
+            type: document.getElementById('type').value,
+            titre: document.getElementById('titre').value,
+            message: document.getElementById('message').value,
+            priorite: document.getElementById('priorite').value
+        };
+        
+        // Récupérer les facultés et promotions sélectionnées
+        const selectedFaculties = Array.from(document.querySelectorAll('.faculty-checkbox:checked'))
+            .map(cb => cb.value);
+        const selectedPromotions = Array.from(document.querySelectorAll('.promotion-checkbox:checked'))
+            .map(cb => cb.value);
+        
+        formData.facultés = selectedFaculties.length > 0 ? selectedFaculties : [];
+        formData.promotions = selectedPromotions.length > 0 ? selectedPromotions : [];
+        
+        try {
+            const response = await apiRequest('/admin/api/send-notification', 'POST', formData);
+            const resultContainer = document.getElementById('result-container');
+            const resultContent = document.getElementById('result-content');
+            
+            if (response.ok && response.data.success) {
+                resultContent.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>Succès !</strong><br>
+                        ${response.data.message}<br>
+                        <strong>Destinataires:</strong> ${response.data.destinataires_count || 'N/A'}<br>
+                        <strong>Task ID:</strong> <code>${response.data.task_id}</code><br>
+                        <strong>Statut:</strong> <span class="badge bg-warning">${response.data.status}</span>
+                    </div>
+                    <p class="mb-0">
+                        <a href="/admin/queue" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-list-queue"></i> Voir dans les files d'attente
+                        </a>
+                    </p>
+                `;
+                resultContainer.style.display = 'block';
+                showAlert('Notification mise en file d\'attente avec succès!', 'success');
+            } else {
+                resultContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Erreur</strong><br>
+                        ${response.data.error || 'Erreur inconnue'}
+                    </div>
+                `;
+                resultContainer.style.display = 'block';
+                showAlert('Erreur lors de l\'envoi', 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    });
+</script>
+{% endblock %}

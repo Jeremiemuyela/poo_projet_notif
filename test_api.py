@@ -8,6 +8,17 @@ from typing import Dict, Any
 
 BASE_URL = "http://localhost:5000"
 
+# Clé API pour les tests (à obtenir depuis users.json ou créer un utilisateur)
+API_KEY = None  # Sera récupérée automatiquement ou définie manuellement
+
+def get_headers():
+    """Retourne les en-têtes avec authentification si disponible."""
+    headers = {"Content-Type": "application/json"}
+    if API_KEY:
+        headers["X-API-Key"] = API_KEY
+    return headers
+
+
 def print_response(response: requests.Response):
     """Affiche la réponse de manière lisible."""
     print(f"\n{'='*60}")
@@ -71,7 +82,7 @@ def test_notification_meteo():
     response = requests.post(
         f"{BASE_URL}/api/notifications/meteo",
         json=data,
-        headers={"Content-Type": "application/json"}
+        headers=get_headers()
     )
     print_response(response)
 
@@ -113,7 +124,7 @@ def test_notification_securite():
     response = requests.post(
         f"{BASE_URL}/api/notifications/securite",
         json=data,
-        headers={"Content-Type": "application/json"}
+        headers=get_headers()
     )
     print_response(response)
 
@@ -143,7 +154,7 @@ def test_notification_sante():
     response = requests.post(
         f"{BASE_URL}/api/notifications/sante",
         json=data,
-        headers={"Content-Type": "application/json"}
+        headers=get_headers()
     )
     print_response(response)
 
@@ -184,7 +195,7 @@ def test_notification_infra():
     response = requests.post(
         f"{BASE_URL}/api/notifications/infra",
         json=data,
-        headers={"Content-Type": "application/json"}
+        headers=get_headers()
     )
     print_response(response)
 
@@ -202,9 +213,28 @@ def test_erreur_validation():
     response = requests.post(
         f"{BASE_URL}/api/notifications/meteo",
         json=data,
-        headers={"Content-Type": "application/json"}
+        headers=get_headers()
     )
     print_response(response)
+
+
+def get_api_key_from_users():
+    """Tente de récupérer la clé API depuis users.json."""
+    global API_KEY
+    try:
+        import os
+        if os.path.exists("users.json"):
+            with open("users.json", 'r', encoding='utf-8') as f:
+                users = json.load(f)
+                # Prendre la première clé API disponible
+                for username, user_data in users.items():
+                    if user_data.get("api_key"):
+                        API_KEY = user_data["api_key"]
+                        print(f"✅ Clé API trouvée pour l'utilisateur: {username}")
+                        return True
+    except Exception as e:
+        print(f"⚠️  Impossible de charger la clé API depuis users.json: {e}")
+    return False
 
 
 def main():
@@ -213,6 +243,23 @@ def main():
     print("TESTS DE L'API RESTful - Système de Notification")
     print("=" * 60)
     print("\n⚠️  Assurez-vous que le serveur Flask est démarré (python app.py)")
+    
+    # Essayer de récupérer la clé API
+    if not get_api_key_from_users():
+        print("\n⚠️  Aucune clé API trouvée.")
+        print("   Les tests nécessitent une authentification.")
+        print("   Vous pouvez :")
+        print("   1. Créer un utilisateur via l'API admin")
+        print("   2. Récupérer la clé API depuis users.json")
+        print("   3. Modifier API_KEY dans ce fichier")
+        api_key_input = input("\n   Entrez une clé API (ou appuyez sur Entrée pour continuer sans) : ")
+        if api_key_input.strip():
+            global API_KEY
+            API_KEY = api_key_input.strip()
+            print(f"✅ Clé API définie")
+        else:
+            print("⚠️  Les tests d'envoi de notifications échoueront sans clé API")
+    
     print("\nAppuyez sur Entrée pour commencer les tests...")
     input()
     

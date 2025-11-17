@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 import projetnotif as notif
 from admin import admin_bp
 from auth import init_default_users, require_auth
+from queue_manager import queue_manager
 
 # ==================== INITIALISATION FLASK ====================
 
@@ -137,6 +138,47 @@ def creer_urgence_depuis_json(type_urgence: notif.TypeUrgence, data: Dict[str, A
     )
 
 
+# ==================== PROCESSOR POUR LES FILES D'ATTENTE ====================
+
+def process_notification_task(task_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Traite une tâche de notification.
+    Cette fonction est appelée par les workers de la file d'attente.
+    """
+    try:
+        # Créer les objets depuis les données
+        type_mapping = {
+            "meteo": notif.TypeUrgence.METEO,
+            "securite": notif.TypeUrgence.SECURITE,
+            "sante": notif.TypeUrgence.SANTE,
+            "infra": notif.TypeUrgence.INFRA
+        }
+        
+        type_urgence = type_mapping.get(task_type)
+        if not type_urgence:
+            raise ValueError(f"Type de notification inconnu: {task_type}")
+        
+        urgence = creer_urgence_depuis_json(type_urgence, data)
+        utilisateurs = creer_utilisateurs_depuis_json(data["utilisateurs"])
+        
+        # Envoyer la notification
+        notificateur = notificateurs[task_type]
+        notificateur.envoyer(urgence, utilisateurs)
+        
+        return {
+            "success": True,
+            "type": task_type,
+            "utilisateurs_notifies": len(utilisateurs)
+        }
+    except Exception as e:
+        raise Exception(f"Erreur lors du traitement: {str(e)}")
+
+
+# Configurer et démarrer le gestionnaire de files d'attente
+queue_manager.set_processor(process_notification_task)
+queue_manager.start()
+
+
 # ==================== GESTION DES ERREURS ====================
 
 @app.errorhandler(400)
@@ -229,20 +271,16 @@ def envoyer_notification_meteo():
                 "error": "Au moins un utilisateur doit être fourni"
             }), 400
         
-        # Créer les objets depuis JSON
-        urgence = creer_urgence_depuis_json(notif.TypeUrgence.METEO, data)
-        utilisateurs = creer_utilisateurs_depuis_json(data["utilisateurs"])
-        
-        # Envoyer la notification
-        notificateur = notificateurs["meteo"]
-        notificateur.envoyer(urgence, utilisateurs)
+        # Ajouter à la file d'attente pour traitement asynchrone
+        task_id = queue_manager.enqueue("meteo", data)
         
         return jsonify({
             "success": True,
-            "message": "Notification météorologique envoyée avec succès",
+            "message": "Notification météorologique mise en file d'attente",
             "type": "meteo",
-            "utilisateurs_notifies": len(utilisateurs)
-        }), 200
+            "task_id": task_id,
+            "status": "pending"
+        }), 202  # 202 Accepted pour traitement asynchrone
         
     except ValueError as e:
         return jsonify({
@@ -293,19 +331,16 @@ def envoyer_notification_securite():
                 "error": "Au moins un utilisateur doit être fourni"
             }), 400
         
-        urgence = creer_urgence_depuis_json(notif.TypeUrgence.SECURITE, data)
-        utilisateurs = creer_utilisateurs_depuis_json(data["utilisateurs"])
-        
-        notificateur = notificateurs["securite"]
-        notificateur.envoyer(urgence, utilisateurs)
+        # Ajouter à la file d'attente pour traitement asynchrone
+        task_id = queue_manager.enqueue("securite", data)
         
         return jsonify({
             "success": True,
-            "message": "Notification de sécurité envoyée avec succès",
+            "message": "Notification de sécurité mise en file d'attente",
             "type": "securite",
-            "priorite": urgence.priorite.name,
-            "utilisateurs_notifies": len(utilisateurs)
-        }), 200
+            "task_id": task_id,
+            "status": "pending"
+        }), 202
         
     except ValueError as e:
         return jsonify({
@@ -356,18 +391,16 @@ def envoyer_notification_sante():
                 "error": "Au moins un utilisateur doit être fourni"
             }), 400
         
-        urgence = creer_urgence_depuis_json(notif.TypeUrgence.SANTE, data)
-        utilisateurs = creer_utilisateurs_depuis_json(data["utilisateurs"])
-        
-        notificateur = notificateurs["sante"]
-        notificateur.envoyer(urgence, utilisateurs)
+        # Ajouter à la file d'attente pour traitement asynchrone
+        task_id = queue_manager.enqueue("sante", data)
         
         return jsonify({
             "success": True,
-            "message": "Notification de santé envoyée avec succès",
+            "message": "Notification de santé mise en file d'attente",
             "type": "sante",
-            "utilisateurs_notifies": len(utilisateurs)
-        }), 200
+            "task_id": task_id,
+            "status": "pending"
+        }), 202
         
     except ValueError as e:
         return jsonify({
@@ -418,18 +451,16 @@ def envoyer_notification_infra():
                 "error": "Au moins un utilisateur doit être fourni"
             }), 400
         
-        urgence = creer_urgence_depuis_json(notif.TypeUrgence.INFRA, data)
-        utilisateurs = creer_utilisateurs_depuis_json(data["utilisateurs"])
-        
-        notificateur = notificateurs["infra"]
-        notificateur.envoyer(urgence, utilisateurs)
+        # Ajouter à la file d'attente pour traitement asynchrone
+        task_id = queue_manager.enqueue("infra", data)
         
         return jsonify({
             "success": True,
-            "message": "Notification d'infrastructure envoyée avec succès",
+            "message": "Notification d'infrastructure mise en file d'attente",
             "type": "infra",
-            "utilisateurs_notifies": len(utilisateurs)
-        }), 200
+            "task_id": task_id,
+            "status": "pending"
+        }), 202
         
     except ValueError as e:
         return jsonify({
@@ -443,6 +474,34 @@ def envoyer_notification_infra():
             "error": "Erreur lors de l'envoi de la notification",
             "message": str(e)
         }), 500
+
+
+@app.route('/api/queue/tasks/<task_id>', methods=['GET'])
+@require_auth
+def get_task_status(task_id: str):
+    """Récupère le statut d'une tâche."""
+    task = queue_manager.get_task(task_id)
+    if not task:
+        return jsonify({
+            "success": False,
+            "error": "Tâche non trouvée"
+        }), 404
+    
+    return jsonify({
+        "success": True,
+        "task": task.to_dict()
+    }), 200
+
+
+@app.route('/api/queue/stats', methods=['GET'])
+@require_auth
+def get_queue_stats():
+    """Récupère les statistiques de la file d'attente."""
+    stats = queue_manager.get_stats()
+    return jsonify({
+        "success": True,
+        "stats": stats
+    }), 200
 
 
 @app.route('/api/notifications/types', methods=['GET'])
