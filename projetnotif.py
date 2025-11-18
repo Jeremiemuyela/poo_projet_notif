@@ -353,13 +353,13 @@ def add_performance_tracking(cls):
     def wrapped_envoyer(self, *args, **kwargs):
         start_time = time.time()
         try:
-        result = original_envoyer(self, *args, **kwargs)
-        duration = time.time() - start_time
+            result = original_envoyer(self, *args, **kwargs)
+            duration = time.time() - start_time
             metrics_manager.record_notification(
                 cls.__name__, duration, success=True
             )
-        print(f"[PERF] {cls.__name__}.envoyer exécuté en {duration:.3f}s")
-        return result
+            print(f"[PERF] {cls.__name__}.envoyer exécuté en {duration:.3f}s")
+            return result
         except Exception as exc:
             duration = time.time() - start_time
             metrics_manager.record_notification(

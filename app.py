@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, session
 from typing import Dict, List, Any, Optional
 import projetnotif as notif
 from admin import admin_bp
+from student import student_bp
 from auth import init_default_users, require_auth
 from queue_manager import queue_manager
 
@@ -17,8 +18,9 @@ app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'  # À changer e
 # Initialiser les utilisateurs par défaut
 init_default_users()
 
-# Enregistrer le Blueprint d'administration
+# Enregistrer les Blueprints
 app.register_blueprint(admin_bp)
+app.register_blueprint(student_bp)
 
 # ==================== INITIALISATION DES SERVICES ====================
 
