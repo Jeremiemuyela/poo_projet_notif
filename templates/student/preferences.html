@@ -1,0 +1,143 @@
+{% extends "student/base.html" %}
+
+{% block title %}Mes Préférences{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-gear"></i> Mes Préférences</h1>
+        <p class="text-muted">Personnalisez vos préférences de notification</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-sliders"></i> Configuration
+            </div>
+            <div class="card-body">
+                <form id="preferences-form">
+                    <div class="mb-4">
+                        <label for="langue" class="form-label">
+                            <i class="bi bi-translate"></i> Langue de préférence <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="langue" name="langue" required>
+                            <option value="fr">Français</option>
+                            <option value="en">English</option>
+                        </select>
+                        <small class="text-muted">Choisissez la langue dans laquelle vous souhaitez recevoir vos notifications</small>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="canal_prefere" class="form-label">
+                            <i class="bi bi-bell"></i> Canal de notification préféré <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="canal_prefere" name="canal_prefere" required>
+                            <option value="email">
+                                <i class="bi bi-envelope"></i> Email
+                            </option>
+                            <option value="sms">SMS</option>
+                            <option value="app">Application mobile</option>
+                        </select>
+                        <small class="text-muted">Sélectionnez votre moyen de communication préféré pour recevoir les notifications</small>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="actif" name="actif">
+                            <label class="form-check-label" for="actif">
+                                <strong>Activer les notifications</strong>
+                            </label>
+                        </div>
+                        <small class="text-muted">Désactivez cette option si vous ne souhaitez plus recevoir de notifications</small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Annuler
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Enregistrer les préférences
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> Informations
+            </div>
+            <div class="card-body">
+                <h5>À propos des préférences</h5>
+                <ul>
+                    <li><strong>Langue :</strong> Les notifications seront traduites dans la langue que vous choisissez</li>
+                    <li><strong>Canal préféré :</strong> Le système tentera d'abord d'envoyer via votre canal préféré, puis utilisera les autres canaux disponibles si nécessaire</li>
+                    <li><strong>Statut actif :</strong> Si désactivé, vous ne recevrez aucune notification, même en cas d'urgence</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadPreferences();
+    });
+    
+    async function loadPreferences() {
+        try {
+            const response = await apiRequest('/student/api/preferences');
+            
+            if (response.ok && response.data.success) {
+                const prefs = response.data.preferences;
+                document.getElementById('langue').value = prefs.langue;
+                document.getElementById('canal_prefere').value = prefs.canal_prefere;
+                document.getElementById('actif').checked = prefs.actif;
+            } else {
+                showAlert('Erreur lors du chargement des préférences', 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    function resetForm() {
+        loadPreferences();
+    }
+    
+    document.getElementById('preferences-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            langue: document.getElementById('langue').value,
+            canal_prefere: document.getElementById('canal_prefere').value,
+            actif: document.getElementById('actif').checked
+        };
+        
+        try {
+            const response = await apiRequest('/student/api/preferences', 'POST', formData);
+            
+            if (response.ok && response.data.success) {
+                showAlert('Préférences mises à jour avec succès !', 'success');
+                // Recharger les préférences après un court délai
+                setTimeout(() => {
+                    loadPreferences();
+                }, 1000);
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    });
+</script>
+{% endblock %}
+
+
+

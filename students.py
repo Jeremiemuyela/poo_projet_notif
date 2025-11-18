@@ -115,6 +115,7 @@ class StudentsManager:
                 setattr(student, key, value)
         
         self._save_students()
+        return student
     
     def delete_student(self, student_id: str):
         """Supprime un étudiant."""

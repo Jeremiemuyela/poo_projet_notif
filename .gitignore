@@ -1,7 +1,7 @@
 # Fichiers de configuration sensibles
 users.json
-smtp_config.json
 students.json
+notifications_log.json
 
 # Python
 __pycache__/

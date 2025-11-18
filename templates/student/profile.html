@@ -1,0 +1,161 @@
+{% extends "student/base.html" %}
+
+{% block title %}Mon Profil{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-person"></i> Mon Profil</h1>
+        <p class="text-muted">Gérez vos informations personnelles</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-person-circle"></i> Informations Personnelles
+            </div>
+            <div class="card-body">
+                <form id="profile-form">
+                    <div class="mb-3">
+                        <label for="id" class="form-label">
+                            <i class="bi bi-person-badge"></i> ID Étudiant
+                        </label>
+                        <input type="text" class="form-control" id="id" name="id" readonly disabled>
+                        <small class="text-muted">L'ID étudiant ne peut pas être modifié</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="nom" class="form-label">
+                            <i class="bi bi-person"></i> Nom complet <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="nom" name="nom" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">
+                            <i class="bi bi-envelope"></i> Email <span class="text-danger">*</span>
+                        </label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <small class="text-muted">Adresse email où vous recevrez les notifications</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="telephone" class="form-label">
+                            <i class="bi bi-telephone"></i> Téléphone
+                        </label>
+                        <input type="text" class="form-control" id="telephone" name="telephone" 
+                               placeholder="+33123456789">
+                        <small class="text-muted">Numéro de téléphone (optionnel, pour les notifications SMS)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="faculté" class="form-label">
+                            <i class="bi bi-building"></i> Faculté
+                        </label>
+                        <input type="text" class="form-control" id="faculté" name="faculté" readonly disabled>
+                        <small class="text-muted">La faculté ne peut pas être modifiée</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="promotion" class="form-label">
+                            <i class="bi bi-mortarboard"></i> Promotion
+                        </label>
+                        <input type="text" class="form-control" id="promotion" name="promotion" readonly disabled>
+                        <small class="text-muted">La promotion ne peut pas être modifiée</small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Annuler
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Enregistrer les modifications
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> Informations
+            </div>
+            <div class="card-body">
+                <h5>À propos de votre profil</h5>
+                <ul>
+                    <li><strong>ID Étudiant :</strong> Identifiant unique qui ne peut pas être modifié</li>
+                    <li><strong>Nom :</strong> Votre nom complet tel qu'il apparaîtra dans les notifications</li>
+                    <li><strong>Email :</strong> Adresse email principale pour recevoir les notifications</li>
+                    <li><strong>Téléphone :</strong> Numéro optionnel pour les notifications SMS</li>
+                    <li><strong>Faculté et Promotion :</strong> Informations administratives non modifiables</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadProfile();
+    });
+    
+    async function loadProfile() {
+        try {
+            const response = await apiRequest('/student/api/profile');
+            
+            if (response.ok && response.data.success) {
+                const profile = response.data.profile;
+                document.getElementById('id').value = profile.id;
+                document.getElementById('nom').value = profile.nom;
+                document.getElementById('email').value = profile.email;
+                document.getElementById('telephone').value = profile.telephone || '';
+                document.getElementById('faculté').value = profile.faculté || '';
+                document.getElementById('promotion').value = profile.promotion || '';
+            } else {
+                showAlert('Erreur lors du chargement du profil', 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    function resetForm() {
+        loadProfile();
+    }
+    
+    document.getElementById('profile-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            nom: document.getElementById('nom').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            telephone: document.getElementById('telephone').value.trim() || null
+        };
+        
+        try {
+            const response = await apiRequest('/student/api/profile', 'POST', formData);
+            
+            if (response.ok && response.data.success) {
+                showAlert('Profil mis à jour avec succès !', 'success');
+                // Recharger le profil après un court délai
+                setTimeout(() => {
+                    loadProfile();
+                }, 1000);
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    });
+</script>
+{% endblock %}
+
+
+

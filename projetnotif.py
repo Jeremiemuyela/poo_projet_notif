@@ -9,6 +9,7 @@ from functools import wraps
 from typing import Any, Dict, List, Optional
 
 from metrics import metrics_manager
+from translation_service import translation_service
 
 
 REGISTRY: Dict[str, Any] = {}
@@ -266,7 +267,13 @@ class Utilisateur:
 
 class Preferences:
     """Préférences d'un utilisateur."""
-    def __init__(self, canal_prefere: str = "email", actif: bool = True):
+    def __init__(
+        self,
+        langue: Optional[Langue] = None,
+        canal_prefere: str = "email",
+        actif: bool = True
+    ):
+        self.langue = langue
         self.canal_prefere = canal_prefere
         self.actif = actif
 
@@ -346,13 +353,13 @@ def add_performance_tracking(cls):
     def wrapped_envoyer(self, *args, **kwargs):
         start_time = time.time()
         try:
-            result = original_envoyer(self, *args, **kwargs)
-            duration = time.time() - start_time
+        result = original_envoyer(self, *args, **kwargs)
+        duration = time.time() - start_time
             metrics_manager.record_notification(
                 cls.__name__, duration, success=True
             )
-            print(f"[PERF] {cls.__name__}.envoyer exécuté en {duration:.3f}s")
-            return result
+        print(f"[PERF] {cls.__name__}.envoyer exécuté en {duration:.3f}s")
+        return result
         except Exception as exc:
             duration = time.time() - start_time
             metrics_manager.record_notification(
@@ -497,9 +504,10 @@ class BaseTemplate(metaclass=TemplateMeta):
 
     def build_context(self, urgence: Urgence, translate, langue: Langue) -> Dict[str, str]:
         titre = translate(urgence.titre, langue)
+        message = translate(urgence.message, langue)
         return {
             "titre": titre,
-            "message": urgence.message,
+            "message": message,
         }
 
 
@@ -516,7 +524,8 @@ class MeteoTemplate(BaseTemplate):
 
     def build_context(self, urgence: Urgence, translate, langue: Langue) -> Dict[str, str]:
         context = super().build_context(urgence, translate, langue)
-        context["message"] = f"{urgence.message} (zones ciblées à vérifier)"
+        message = f"{urgence.message} (zones ciblées à vérifier)"
+        context["message"] = translate(message, langue)
         return context
 
 
@@ -528,7 +537,8 @@ class SecuriteTemplate(BaseTemplate):
     def build_context(self, urgence: Urgence, translate, langue: Langue) -> Dict[str, Any]:
         context = super().build_context(urgence, translate, langue)
         context["priorite"] = urgence.priorite.name
-        context["message"] = f"{urgence.message} (Priorité: {urgence.priorite.name})"
+        message = f"{urgence.message} (Priorité: {urgence.priorite.name})"
+        context["message"] = translate(message, langue)
         return context
 
 
@@ -539,7 +549,8 @@ class SanteTemplate(BaseTemplate):
 
     def build_context(self, urgence: Urgence, translate, langue: Langue) -> Dict[str, str]:
         context = super().build_context(urgence, translate, langue)
-        context["message"] = f"{urgence.message} Merci de suivre les instructions sanitaires."
+        message = f"{urgence.message} Merci de suivre les instructions sanitaires."
+        context["message"] = translate(message, langue)
         return context
 
 
@@ -550,7 +561,8 @@ class InfraTemplate(BaseTemplate):
 
     def build_context(self, urgence: Urgence, translate, langue: Langue) -> Dict[str, str]:
         context = super().build_context(urgence, translate, langue)
-        context["message"] = f"{urgence.message} Merci de planifier vos déplacements."
+        message = f"{urgence.message} Merci de planifier vos déplacements."
+        context["message"] = translate(message, langue)
         return context
 
 
@@ -576,17 +588,19 @@ class NotificationBase(metaclass=NotificationMeta):
         self.canaux = canaux
         self.prefs_store = prefs_store
 
-    def traduire(self, texte: str, langue: Langue) -> str:
-        """Traduit un texte (simplifié)."""
-        traductions = {
-            "alerte_securite": {"fr": "Alerte de sécurité", "en": "Security alert"},
-            "alerte_meteo": {"fr": "Alerte météo", "en": "Weather alert"},
-            "alerte_sante": {"fr": "Alerte santé", "en": "Health alert"},
-            "alerte_infra": {"fr": "Alerte infrastructure", "en": "Infrastructure alert"},
-        }
-        if texte in traductions:
-            return traductions[texte].get(langue.value, texte)
-        return texte
+    def traduire(self, texte: str, langue: Langue, source_lang: str = "fr") -> str:
+        """Traduit un texte en utilisant le service dédié."""
+        if not texte:
+            return texte
+        try:
+            target_lang = langue.value if isinstance(langue, Langue) else str(langue)
+        except AttributeError:
+            target_lang = str(langue)
+        return translation_service.translate_text(
+            texte,
+            source_lang=source_lang,
+            target_lang=target_lang
+        )
 
     @log_action
     def envoyer(self, urgence: Urgence, utilisateurs: List[Utilisateur]):
@@ -605,25 +619,36 @@ class NotificationBase(metaclass=NotificationMeta):
             if prefs and not prefs.actif:
                 continue
 
+            # Déterminer la langue (préférence > profil > langue déclarée)
+            langue_utilisateur = user.langue
+            if prefs and prefs.langue:
+                langue_utilisateur = prefs.langue
+            elif user.langue_preferee:
+                try:
+                    langue_utilisateur = Langue(user.langue_preferee)
+                except ValueError:
+                    langue_utilisateur = user.langue
+
             # Préparer la charge utile
             if template_cls:
                 template = template_cls()
-                charge = template.build_context(urgence, self.traduire, user.langue)
+                charge = template.build_context(urgence, self.traduire, langue_utilisateur)
                 validate_context = getattr(template, "validate_context", None)
                 if callable(validate_context):
                     validate_context(charge)
             else:
-                titre = self.traduire(urgence.titre, user.langue)
+                titre = self.traduire(urgence.titre, langue_utilisateur)
+                message_traduit = self.traduire(urgence.message, langue_utilisateur)
                 charge = {
                     "titre": titre,
-                    "message": urgence.message
+                    "message": message_traduit
                 }
 
             # Créer le message
             message = Message(charge=charge, priorite=urgence.priorite, utilisateur=user)
 
             # Dispatcher directement vers le canal
-            canal_nom = prefs.canal_prefere if prefs else "email"
+            canal_nom = prefs.canal_prefere if prefs and prefs.canal_prefere else "email"
             canal = self.canaux.get(canal_nom, self.canaux["email"])
             canal.livrer(message)
 

@@ -1,0 +1,285 @@
+{% extends "student/base.html" %}
+
+{% block title %}Mes Notifications{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="bi bi-bell"></i> Mes Notifications</h1>
+            <p class="text-muted">Consultez toutes les notifications que vous avez reçues</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" onclick="markAllAsRead()">
+                <i class="bi bi-check-all"></i> Tout marquer comme lu
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtres -->
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="filter-status" class="form-label">Statut</label>
+                        <select class="form-select" id="filter-status" onchange="loadNotifications()">
+                            <option value="">Toutes</option>
+                            <option value="unread">Non lues</option>
+                            <option value="read">Lues</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filter-type" class="form-label">Type</label>
+                        <select class="form-select" id="filter-type" onchange="loadNotifications()">
+                            <option value="">Tous les types</option>
+                            <option value="meteo">🌦️ Météo</option>
+                            <option value="securite">🚨 Sécurité</option>
+                            <option value="sante">🏥 Santé</option>
+                            <option value="infra">🏗️ Infrastructure</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filter-limit" class="form-label">Nombre</label>
+                        <select class="form-select" id="filter-limit" onchange="loadNotifications()">
+                            <option value="">Toutes</option>
+                            <option value="10">10 dernières</option>
+                            <option value="20">20 dernières</option>
+                            <option value="50">50 dernières</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-secondary w-100" onclick="resetFilters()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Liste des notifications -->
+<div class="row">
+    <div class="col-12">
+        <div id="notifications-container">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let unreadCount = 0;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadNotifications();
+        updateUnreadBadge();
+        // Rafraîchir toutes les 30 secondes
+        setInterval(() => {
+            loadNotifications();
+            updateUnreadBadge();
+        }, 30000);
+    });
+    
+    async function loadNotifications() {
+        const status = document.getElementById('filter-status').value;
+        const type = document.getElementById('filter-type').value;
+        const limit = document.getElementById('filter-limit').value;
+        
+        let url = '/student/api/notifications?';
+        if (status) url += `status=${status}&`;
+        if (type) url += `type=${type}&`;
+        if (limit) url += `limit=${limit}&`;
+        
+        try {
+            const response = await apiRequest(url);
+            const container = document.getElementById('notifications-container');
+            
+            if (response.ok && response.data.success) {
+                const notifications = response.data.notifications;
+                unreadCount = response.data.unread_count;
+                updateUnreadBadge();
+                
+                if (notifications.length === 0) {
+                    container.innerHTML = `
+                        <div class="card">
+                            <div class="card-body text-center py-5">
+                                <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                                <p class="text-muted mt-3">Aucune notification trouvée</p>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '<div class="list-group">';
+                notifications.forEach(notif => {
+                    const typeIcons = {
+                        'meteo': '🌦️',
+                        'securite': '🚨',
+                        'sante': '🏥',
+                        'infra': '🏗️'
+                    };
+                    const typeLabels = {
+                        'meteo': 'Météo',
+                        'securite': 'Sécurité',
+                        'sante': 'Santé',
+                        'infra': 'Infrastructure'
+                    };
+                    const prioriteColors = {
+                        'CRITIQUE': 'danger',
+                        'HAUTE': 'warning',
+                        'NORMALE': 'info'
+                    };
+                    const canalIcons = {
+                        'email': '📧',
+                        'sms': '📱',
+                        'app': '📲'
+                    };
+                    
+                    const isUnread = notif.status === 'unread';
+                    const date = new Date(notif.created_at);
+                    const dateStr = date.toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    html += `
+                        <div class="list-group-item ${isUnread ? 'list-group-item-primary' : ''}" id="notif-${notif.id}">
+                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <h5 class="mb-0 me-2">${typeIcons[notif.type] || '📢'} ${typeLabels[notif.type] || notif.type}</h5>
+                                        <span class="badge bg-${prioriteColors[notif.priorite] || 'secondary'}">${notif.priorite}</span>
+                                        ${isUnread ? '<span class="badge bg-danger ms-2">Non lue</span>' : ''}
+                                    </div>
+                                    <h6 class="mb-1">${notif.titre}</h6>
+                                    <p class="mb-2">${notif.message}</p>
+                                    <small class="text-muted">
+                                        <i class="bi bi-clock"></i> ${dateStr} 
+                                        <span class="ms-2">${canalIcons[notif.canal] || ''} ${notif.canal}</span>
+                                    </small>
+                                </div>
+                                <div class="ms-3">
+                                    ${isUnread ? `
+                                        <button class="btn btn-sm btn-outline-primary" onclick="markAsRead('${notif.id}')" title="Marquer comme lue">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                    ` : ''}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteNotification('${notif.id}')" title="Supprimer">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '<div class="alert alert-danger">Erreur lors du chargement des notifications</div>';
+            }
+        } catch (error) {
+            document.getElementById('notifications-container').innerHTML = 
+                '<div class="alert alert-danger">Erreur: ' + error.message + '</div>';
+        }
+    }
+    
+    async function markAsRead(notificationId) {
+        try {
+            const response = await apiRequest(`/student/api/notifications/${notificationId}/read`, 'POST');
+            
+            if (response.ok && response.data.success) {
+                showAlert('Notification marquée comme lue', 'success');
+                unreadCount = response.data.unread_count;
+                updateUnreadBadge();
+                loadNotifications();
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    async function markAllAsRead() {
+        if (!confirm('Marquer toutes les notifications comme lues ?')) {
+            return;
+        }
+        
+        try {
+            const response = await apiRequest('/student/api/notifications/read-all', 'POST');
+            
+            if (response.ok && response.data.success) {
+                showAlert(response.data.message, 'success');
+                unreadCount = 0;
+                updateUnreadBadge();
+                loadNotifications();
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    async function deleteNotification(notificationId) {
+        if (!confirm('Supprimer cette notification ?')) {
+            return;
+        }
+        
+        try {
+            const response = await apiRequest(`/student/api/notifications/${notificationId}`, 'DELETE');
+            
+            if (response.ok && response.data.success) {
+                showAlert('Notification supprimée', 'success');
+                loadNotifications();
+                updateUnreadBadge();
+            } else {
+                showAlert('Erreur: ' + (response.data.error || 'Erreur inconnue'), 'danger');
+            }
+        } catch (error) {
+            showAlert('Erreur: ' + error.message, 'danger');
+        }
+    }
+    
+    function resetFilters() {
+        document.getElementById('filter-status').value = '';
+        document.getElementById('filter-type').value = '';
+        document.getElementById('filter-limit').value = '';
+        loadNotifications();
+    }
+    
+    async function updateUnreadBadge() {
+        try {
+            const response = await apiRequest('/student/api/notifications?status=unread');
+            if (response.ok && response.data.success) {
+                unreadCount = response.data.unread_count;
+                const badge = document.getElementById('unread-badge');
+                if (unreadCount > 0) {
+                    badge.textContent = unreadCount;
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour du badge:', error);
+        }
+    }
+</script>
+{% endblock %}
+
+
+

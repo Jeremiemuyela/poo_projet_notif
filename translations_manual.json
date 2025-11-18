@@ -1,0 +1,27 @@
+{
+  "Alerte de sécurité": {
+    "en": "Security alert"
+  },
+  "Alerte météo": {
+    "en": "Weather alert"
+  },
+  "Alerte santé": {
+    "en": "Health alert"
+  },
+  "Alerte infrastructure": {
+    "en": "Infrastructure alert"
+  },
+  "Merci de suivre les instructions sanitaires.": {
+    "en": "Please follow the health guidelines."
+  },
+  "Merci de planifier vos déplacements.": {
+    "en": "Please plan your movements."
+  },
+  "zones ciblées à vérifier": {
+    "en": "target areas to check"
+  },
+  "(zones ciblées à vérifier)": {
+    "en": "(target areas to check)"
+  }
+}
+
