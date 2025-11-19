@@ -1,9 +1,9 @@
 """
 Service de traduction simple avec fallback manuel.
+Utilise SQLite pour les traductions manuelles.
 """
-import json
-import os
-from typing import Dict, Optional
+from typing import Optional
+from db import fetch_one
 
 try:
     from deep_translator import GoogleTranslator  # type: ignore
@@ -11,7 +11,6 @@ except ImportError:  # pragma: no cover
     GoogleTranslator = None
 
 
-MANUAL_TRANSLATIONS_FILE = "translations_manual.json"
 SUPPORTED_LANGUAGES = {"fr", "en"}
 
 
@@ -19,39 +18,31 @@ class TranslationService:
     """Service centralisé de traduction."""
 
     def __init__(self):
-        self.manual_translations: Dict[str, Dict[str, str]] = {}
-        self._load_manual_translations()
-
-    def _load_manual_translations(self):
-        """Charge les traductions manuelles depuis un fichier JSON."""
-        if not os.path.exists(MANUAL_TRANSLATIONS_FILE):
-            self.manual_translations = {}
-            return
-
-        try:
-            with open(MANUAL_TRANSLATIONS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    self.manual_translations = data
-        except (json.JSONDecodeError, IOError) as exc:  # pragma: no cover
-            print(f"[TRANSLATION] Erreur de chargement des traductions: {exc}")
-            self.manual_translations = {}
+        pass  # Plus besoin de charger depuis JSON
 
     def _find_manual_translation(self, texte: str, target_lang: str) -> Optional[str]:
-        """Recherche une traduction dans le dictionnaire manuel."""
+        """Recherche une traduction dans la base de données."""
         if not texte:
             return None
 
         key = texte.strip()
-        entry = self.manual_translations.get(key)
-        if entry:
-            return entry.get(target_lang)
+        
+        # Recherche exacte
+        result = fetch_one(
+            f"SELECT {target_lang} FROM translations WHERE key_text = ?",
+            (key,)
+        )
+        if result and result.get(target_lang):
+            return result[target_lang]
 
-        # Essayer avec une clé insensible à la casse
-        lower_key = key.lower()
-        for original, translations in self.manual_translations.items():
-            if original.lower() == lower_key:
-                return translations.get(target_lang)
+        # Recherche insensible à la casse
+        result = fetch_one(
+            f"SELECT {target_lang} FROM translations WHERE LOWER(key_text) = LOWER(?)",
+            (key,)
+        )
+        if result and result.get(target_lang):
+            return result[target_lang]
+        
         return None
 
     def translate_text(
@@ -82,13 +73,13 @@ class TranslationService:
             try:
                 translator = GoogleTranslator(source=source_lang, target=target_lang)
                 translated = translator.translate(texte)
-                print(f"[TRANSLATION] ✓ Traduction réussie via deep-translator: '{texte}' -> '{translated}'")
+                print(f"[TRANSLATION] Traduction reussie via deep-translator: '{texte}' -> '{translated}'")
                 return translated
             except Exception as exc:  # pragma: no cover
-                print(f"[TRANSLATION] ✗ Erreur via API deep-translator: {exc}")
+                print(f"[TRANSLATION] Erreur via API deep-translator: {exc}")
 
         # Fallback: retourner le texte original avec un avertissement
-        print(f"[TRANSLATION] ⚠ ATTENTION: Traduction non disponible pour '{texte}' (fr -> {target_lang}), texte original retourné")
+        print(f"[TRANSLATION] ATTENTION: Traduction non disponible pour '{texte}' (fr -> {target_lang}), texte original retourne")
         return texte
 
 

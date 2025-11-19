@@ -241,7 +241,7 @@
         const selectedPromotions = Array.from(document.querySelectorAll('.promotion-checkbox:checked'))
             .map(cb => cb.value);
         
-        formData.facultés = selectedFaculties.length > 0 ? selectedFaculties : [];
+        formData.facultes = selectedFaculties.length > 0 ? selectedFaculties : [];
         formData.promotions = selectedPromotions.length > 0 ? selectedPromotions : [];
         
         try {

@@ -1,17 +1,13 @@
 """
-Module d'authentification et d'autorisation simple
-Stockage des utilisateurs dans un fichier JSON
+Module d'authentification et d'autorisation
+Stockage des utilisateurs dans SQLite3
 """
-import json
-import os
 import secrets
 import hashlib
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 from functools import wraps
 from flask import request, jsonify, session, redirect, url_for
-
-# Fichier de stockage des utilisateurs
-USERS_FILE = "users.json"
+from db import fetch_one, fetch_all, execute_query
 
 # Rôles disponibles
 ROLES = {
@@ -22,20 +18,10 @@ ROLES = {
 
 
 def load_users() -> Dict[str, Dict]:
-    """Charge les utilisateurs depuis le fichier JSON."""
-    if not os.path.exists(USERS_FILE):
-        return {}
-    try:
-        with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return {}
-
-
-def save_users(users: Dict[str, Dict]):
-    """Sauvegarde les utilisateurs dans le fichier JSON."""
-    with open(USERS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
+    """Charge les utilisateurs depuis la base de données SQLite."""
+    users_list = fetch_all("SELECT * FROM users")
+    # Convertir en format dict avec username comme clé (pour compatibilité)
+    return {user['username']: dict(user) for user in users_list}
 
 
 def hash_password(password: str) -> str:
@@ -58,52 +44,49 @@ def create_user(username: str, password: str, role: str = "viewer", api_key: Opt
     if role not in ROLES:
         raise ValueError(f"Rôle invalide: {role}. Rôles disponibles: {', '.join(ROLES.keys())}")
     
-    users = load_users()
-    if username in users:
+    # Vérifier si l'utilisateur existe déjà
+    existing = fetch_one("SELECT id FROM users WHERE username = ?", (username,))
+    if existing:
         raise ValueError(f"L'utilisateur '{username}' existe déjà")
     
     if api_key is None:
         api_key = generate_api_key()
     
-    user = {
-        "username": username,
-        "password_hash": hash_password(password),
-        "role": role,
-        "api_key": api_key,
-        "active": True
-    }
+    # Insérer dans la base de données
+    execute_query("""
+        INSERT INTO users (username, password_hash, role, api_key, active)
+        VALUES (?, ?, ?, ?, ?)
+    """, (username, hash_password(password), role, api_key, True))
     
-    users[username] = user
-    save_users(users)
-    return user
+    # Récupérer l'utilisateur créé
+    user = fetch_one("SELECT * FROM users WHERE username = ?", (username,))
+    return dict(user) if user else {}
 
 
 def authenticate_user(username: str, password: str) -> Optional[Dict]:
     """Authentifie un utilisateur avec nom d'utilisateur et mot de passe."""
-    users = load_users()
-    user = users.get(username)
+    user = fetch_one("SELECT * FROM users WHERE username = ? AND active = 1", (username,))
     
     if not user:
-        return None
-    
-    if not user.get("active", True):
         return None
     
     if not verify_password(password, user.get("password_hash", "")):
         return None
     
-    return user
+    # Mettre à jour la dernière connexion
+    execute_query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", (user['id'],))
+    
+    return dict(user)
 
 
 def authenticate_api_key(api_key: str) -> Optional[Dict]:
     """Authentifie un utilisateur avec une clé API."""
-    users = load_users()
+    user = fetch_one("SELECT * FROM users WHERE api_key = ? AND active = 1", (api_key,))
     
-    for username, user in users.items():
-        if user.get("api_key") == api_key and user.get("active", True):
-            return user
+    if not user:
+        return None
     
-    return None
+    return dict(user)
 
 
 def get_user_permissions(role: str) -> Set[str]:
@@ -228,8 +211,10 @@ def require_permission(permission: str):
 # ==================== INITIALISATION ====================
 
 def init_default_users():
-    """Initialise les utilisateurs par défaut si le fichier n'existe pas."""
-    if os.path.exists(USERS_FILE):
+    """Initialise les utilisateurs par défaut si la base de données est vide."""
+    # Vérifier si des utilisateurs existent déjà
+    existing_users = fetch_one("SELECT COUNT(*) as count FROM users")
+    if existing_users and existing_users['count'] > 0:
         return
     
     # Créer un admin par défaut
@@ -239,8 +224,8 @@ def init_default_users():
             password="admin123",  # À changer en production !
             role="admin"
         )
-        print(f"[AUTH] Utilisateur admin créé (mot de passe: admin123)")
-        print(f"[AUTH] ⚠️  Changez le mot de passe en production !")
+        print(f"[AUTH] Utilisateur admin cree (mot de passe: admin123)")
+        print(f"[AUTH] Changez le mot de passe en production !")
     except Exception as e:
-        print(f"[AUTH] Erreur lors de la création de l'utilisateur par défaut: {e}")
+        print(f"[AUTH] Erreur lors de la creation de l'utilisateur par defaut: {e}")
 

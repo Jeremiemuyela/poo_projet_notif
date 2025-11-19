@@ -124,7 +124,7 @@ def get_profile():
                 "nom": student.nom,
                 "email": student.email,
                 "telephone": student.telephone,
-                "faculté": student.faculté,
+                "faculte": student.faculte,
                 "promotion": student.promotion,
                 "langue": student.langue,
                 "canal_prefere": student.canal_prefere,
@@ -223,7 +223,7 @@ def update_profile():
                     "nom": updated_student.nom,
                     "email": updated_student.email,
                     "telephone": updated_student.telephone,
-                    "faculté": updated_student.faculté,
+                    "faculte": updated_student.faculte,
                     "promotion": updated_student.promotion
                 }
             }), 200

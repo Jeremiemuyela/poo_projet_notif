@@ -51,10 +51,10 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="faculté" class="form-label">
+                        <label for="faculte" class="form-label">
                             <i class="bi bi-building"></i> Faculté
                         </label>
-                        <input type="text" class="form-control" id="faculté" name="faculté" readonly disabled>
+                        <input type="text" class="form-control" id="faculte" name="faculte" readonly disabled>
                         <small class="text-muted">La faculté ne peut pas être modifiée</small>
                     </div>
                     
@@ -115,7 +115,7 @@
                 document.getElementById('nom').value = profile.nom;
                 document.getElementById('email').value = profile.email;
                 document.getElementById('telephone').value = profile.telephone || '';
-                document.getElementById('faculté').value = profile.faculté || '';
+                document.getElementById('faculte').value = profile.faculte || '';
                 document.getElementById('promotion').value = profile.promotion || '';
             } else {
                 showAlert('Erreur lors du chargement du profil', 'danger');

@@ -1,8 +1,3 @@
-# Fichiers de configuration sensibles
-users.json
-students.json
-notifications_log.json
-
 # Python
 __pycache__/
 *.py[cod]
@@ -13,6 +8,10 @@ env/
 venv/
 ENV/
 .venv
+notif/
+
+# Fichiers générés automatiquement
+notifications_log.json
 
 # IDE
 .vscode/

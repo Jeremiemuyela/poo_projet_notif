@@ -566,13 +566,13 @@ def send_notification_from_admin():
             }), 400
         
         # Récupérer les destinataires par filtrage
-        facultés = data.get("facultés", [])
+        facultes = data.get("facultes", [])
         promotions = data.get("promotions", [])
         
         # Filtrer selon les facultés et promotions
         # Si aucune sélection, prendre tous les étudiants actifs
         filtered_students = students_manager.filter_students(
-            facultés=facultés if facultés else None,
+            facultes=facultes if facultes else None,
             promotions=promotions if promotions else None,
             actif_only=True
         )
