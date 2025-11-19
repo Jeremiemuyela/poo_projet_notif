@@ -130,8 +130,8 @@ def get_profile():
                 "canal_prefere": student.canal_prefere,
                 "actif": student.actif,
                 "preferences": {
-                    "langue": prefs.langue.value if prefs and prefs.langue else student.langue,
-                    "canal_prefere": prefs.canal_prefere.value if prefs and prefs.canal_prefere else student.canal_prefere,
+                    "langue": (prefs.langue.value if prefs and prefs.langue and hasattr(prefs.langue, 'value') else (str(prefs.langue) if prefs and prefs.langue else student.langue)),
+                    "canal_prefere": (prefs.canal_prefere if prefs and prefs.canal_prefere and isinstance(prefs.canal_prefere, str) else (prefs.canal_prefere.value if prefs and prefs.canal_prefere and hasattr(prefs.canal_prefere, 'value') else (str(prefs.canal_prefere) if prefs and prefs.canal_prefere else student.canal_prefere))),
                     "actif": prefs.actif if prefs is not None else student.actif
                 } if prefs else {
                     "langue": student.langue,
@@ -279,11 +279,20 @@ def get_preferences():
                 }
             }), 200
         
+        # Extraire les valeurs des préférences de manière sécurisée
+        langue_value = student.langue
+        if prefs.langue:
+            langue_value = prefs.langue.value if hasattr(prefs.langue, 'value') else str(prefs.langue)
+        
+        canal_value = prefs.canal_prefere
+        if not isinstance(canal_value, str):
+            canal_value = canal_value.value if hasattr(canal_value, 'value') else str(canal_value)
+        
         return jsonify({
             "success": True,
             "preferences": {
-                "langue": prefs.langue.value,
-                "canal_prefere": prefs.canal_prefere.value,
+                "langue": langue_value,
+                "canal_prefere": canal_value,
                 "actif": prefs.actif
             }
         }), 200
@@ -356,6 +365,12 @@ def update_preferences():
             actif=actif
         )
         prefs_store.sauvegarder(student_id, prefs)
+        print(f"[DEBUG] Préférences sauvegardées pour {student_id}: langue={langue_enum.value}, canal={canal_prefere}, actif={actif}")
+        
+        # Vérifier que c'est bien sauvegardé
+        prefs_verif = prefs_store.obtenir(student_id)
+        if prefs_verif:
+            print(f"[DEBUG] Vérification - Préférences lues: langue={prefs_verif.langue.value if prefs_verif.langue else None}, canal={prefs_verif.canal_prefere}, actif={prefs_verif.actif}")
         
         # Mettre à jour aussi dans students.json pour cohérence
         students_manager.update_student(
@@ -417,10 +432,24 @@ def get_notifications():
             limit=limit
         )
 
-        target_lang = (student.langue or "fr").lower()
+        # Récupérer les préférences de langue depuis PreferencesStore
+        prefs_store = notif.PreferencesStore()
+        prefs = prefs_store.obtenir(student_id)
+        
+        # Déterminer la langue cible (préférence > profil étudiant)
+        target_lang = "fr"  # Par défaut
+        if prefs and prefs.langue:
+            target_lang = prefs.langue.value if hasattr(prefs.langue, 'value') else str(prefs.langue)
+        elif student.langue:
+            target_lang = student.langue
+        
+        target_lang = target_lang.lower()
+        
         translated_notifications = []
         for notif_entry in notifications_list:
             notif_dict = notif_entry.to_dict()
+            # Les notifications sont déjà traduites lors de l'envoi, mais on peut les retraduire si nécessaire
+            # ou simplement les afficher telles quelles car elles sont déjà dans la bonne langue
             notif_dict["titre"] = translation_service.translate_text(
                 notif_dict.get("titre", ""),
                 source_lang="fr",

@@ -578,17 +578,40 @@ def send_notification_from_admin():
         )
         
         # Convertir les étudiants en format utilisateur
+        # Charger le store de préférences pour récupérer les préférences de langue
+        # (maintenant un singleton, donc partagé avec app.py)
+        prefs_store = notif.PreferencesStore()
+        
         utilisateurs_data = []
         for student in filtered_students:
+            # Charger les préférences depuis PreferencesStore si elles existent
+            prefs = prefs_store.obtenir(student.id)
+            
+            # Déterminer la langue (préférence > profil étudiant)
+            langue = student.langue
+            if prefs and prefs.langue:
+                langue = prefs.langue.value if isinstance(prefs.langue, notif.Langue) else str(prefs.langue)
+            
+            # Déterminer le canal préféré (préférence > profil étudiant)
+            canal_prefere = student.canal_prefere
+            if prefs and prefs.canal_prefere:
+                canal_prefere = prefs.canal_prefere
+            
+            # Déterminer le statut actif (préférence > profil étudiant)
+            actif = student.actif
+            if prefs is not None:
+                actif = prefs.actif
+            
             utilisateurs_data.append({
                 "id": student.id,
                 "nom": student.nom,
                 "email": student.email,
                 "telephone": student.telephone,
-                "langue": student.langue,
+                "langue": langue,
                 "preferences": {
-                    "canal_prefere": student.canal_prefere,
-                    "actif": student.actif
+                    "langue": langue,
+                    "canal_prefere": canal_prefere,
+                    "actif": actif
                 }
             })
         

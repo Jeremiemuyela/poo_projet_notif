@@ -106,13 +106,43 @@ def creer_utilisateurs_depuis_json(users_data: List[Dict[str, Any]]) -> List[not
         )
         utilisateurs.append(utilisateur)
         
-        # Sauvegarder les préférences si fournies
-        if "preferences" in user_data:
-            prefs_data = user_data["preferences"]
-            canal_prefere = prefs_data.get("canal_prefere", "email")
-            actif = prefs_data.get("actif", True)
-            prefs = notif.Preferences(canal_prefere=canal_prefere, actif=actif)
-            prefs_store.sauvegarder(user_id, prefs)
+        # Charger les préférences depuis PreferencesStore en premier
+        prefs_existantes = prefs_store.obtenir(user_id)
+        print(f"[DEBUG] creer_utilisateurs_depuis_json - User {user_id}: préférences existantes = {prefs_existantes}")
+        
+        # Déterminer la langue pour les préférences (préférence existante > JSON > langue utilisateur)
+        langue_pref = None
+        if prefs_existantes and prefs_existantes.langue:
+            langue_pref = prefs_existantes.langue
+            print(f"[DEBUG] Langue depuis préférences existantes: {langue_pref.value if hasattr(langue_pref, 'value') else langue_pref}")
+        elif "preferences" in user_data and "langue" in user_data["preferences"]:
+            langue_pref = valider_langue(user_data["preferences"]["langue"])
+            print(f"[DEBUG] Langue depuis JSON: {langue_pref.value if hasattr(langue_pref, 'value') else langue_pref}")
+        else:
+            langue_pref = langue
+            print(f"[DEBUG] Langue depuis utilisateur: {langue_pref.value if hasattr(langue_pref, 'value') else langue_pref}")
+        
+        # Déterminer le canal préféré (préférence existante > JSON > défaut)
+        canal_prefere = "email"
+        if prefs_existantes and prefs_existantes.canal_prefere:
+            canal_prefere = prefs_existantes.canal_prefere
+        elif "preferences" in user_data and "canal_prefere" in user_data["preferences"]:
+            canal_prefere = user_data["preferences"]["canal_prefere"]
+        
+        # Déterminer le statut actif (préférence existante > JSON > défaut)
+        actif = True
+        if prefs_existantes is not None:
+            actif = prefs_existantes.actif
+        elif "preferences" in user_data and "actif" in user_data["preferences"]:
+            actif = user_data["preferences"]["actif"]
+        
+        # Créer ou mettre à jour les préférences avec la langue
+        prefs = notif.Preferences(
+            langue=langue_pref,
+            canal_prefere=canal_prefere,
+            actif=actif
+        )
+        prefs_store.sauvegarder(user_id, prefs)
     
     return utilisateurs
 

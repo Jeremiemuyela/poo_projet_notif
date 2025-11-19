@@ -81,11 +81,14 @@ class TranslationService:
         if GoogleTranslator:
             try:
                 translator = GoogleTranslator(source=source_lang, target=target_lang)
-                return translator.translate(texte)
+                translated = translator.translate(texte)
+                print(f"[TRANSLATION] ✓ Traduction réussie via deep-translator: '{texte}' -> '{translated}'")
+                return translated
             except Exception as exc:  # pragma: no cover
-                print(f"[TRANSLATION] Erreur via API: {exc}")
+                print(f"[TRANSLATION] ✗ Erreur via API deep-translator: {exc}")
 
-        # Fallback: retourner le texte original
+        # Fallback: retourner le texte original avec un avertissement
+        print(f"[TRANSLATION] ⚠ ATTENTION: Traduction non disponible pour '{texte}' (fr -> {target_lang}), texte original retourné")
         return texte
 
 

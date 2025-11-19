@@ -11,6 +11,12 @@ from typing import Any, Dict, List, Optional
 from metrics import metrics_manager
 from translation_service import translation_service
 
+# Import conditionnel pour éviter les dépendances circulaires
+try:
+    from notifications_log import notifications_logger
+except ImportError:
+    notifications_logger = None
+
 
 REGISTRY: Dict[str, Any] = {}
 CONFIG_SOURCE: Dict[str, Dict[str, Any]] = {}
@@ -569,9 +575,24 @@ class InfraTemplate(BaseTemplate):
 # ==================== NOTIFICATEURS ====================
 
 class PreferencesStore:
-    """Store des préférences utilisateur."""
+    """Store des préférences utilisateur (singleton)."""
+    _instance = None
+    _prefs_shared = {}
+    
+    def __new__(cls):
+        """Pattern singleton pour partager les préférences entre toutes les instances."""
+        if cls._instance is None:
+            cls._instance = super(PreferencesStore, cls).__new__(cls)
+            cls._instance._prefs = cls._prefs_shared
+        return cls._instance
+    
     def __init__(self):
-        self._prefs = {}
+        # S'assurer que _prefs pointe vers le dictionnaire partagé
+        # (nécessaire car __init__ est appelé même pour les instances existantes)
+        if not hasattr(self, '_prefs'):
+            self._prefs = PreferencesStore._prefs_shared
+        elif self._prefs is not PreferencesStore._prefs_shared:
+            self._prefs = PreferencesStore._prefs_shared
 
     def obtenir(self, user_id: str) -> Optional[Preferences]:
         """Obtient les préférences d'un utilisateur."""
@@ -596,11 +617,15 @@ class NotificationBase(metaclass=NotificationMeta):
             target_lang = langue.value if isinstance(langue, Langue) else str(langue)
         except AttributeError:
             target_lang = str(langue)
-        return translation_service.translate_text(
+        
+        print(f"[DEBUG] Traduction - Texte: '{texte}', Source: {source_lang}, Cible: {target_lang}")
+        resultat = translation_service.translate_text(
             texte,
             source_lang=source_lang,
             target_lang=target_lang
         )
+        print(f"[DEBUG] Traduction - Résultat: '{resultat}'")
+        return resultat
 
     @log_action
     def envoyer(self, urgence: Urgence, utilisateurs: List[Utilisateur]):
@@ -616,20 +641,36 @@ class NotificationBase(metaclass=NotificationMeta):
 
         for user in utilisateurs:
             prefs = self.prefs_store.obtenir(user.id)
-            if prefs and not prefs.actif:
+            print(f"[DEBUG] Utilisateur {user.id} - Préférences chargées: {prefs}")
+            if prefs:
+                print(f"[DEBUG] Préférences - Langue: {prefs.langue}, Canal: {prefs.canal_prefere}, Actif: {prefs.actif}")
+            
+            # Vérifier si l'utilisateur est actif
+            # Si pas de préférences, considérer comme actif par défaut
+            if prefs is not None and not prefs.actif:
+                print(f"[NOTIFICATION] Utilisateur {user.id} ({user.nom}) est inactif, notification ignorée")
                 continue
 
             # Déterminer la langue (préférence > profil > langue déclarée)
             langue_utilisateur = user.langue
+            print(f"[DEBUG] Langue initiale (profil): {langue_utilisateur}")
             if prefs and prefs.langue:
                 langue_utilisateur = prefs.langue
+                print(f"[DEBUG] Langue depuis préférences: {langue_utilisateur}")
             elif user.langue_preferee:
                 try:
                     langue_utilisateur = Langue(user.langue_preferee)
+                    print(f"[DEBUG] Langue depuis langue_preferee: {langue_utilisateur}")
                 except ValueError:
                     langue_utilisateur = user.langue
+                    print(f"[DEBUG] Erreur conversion langue_preferee, utilisation profil: {langue_utilisateur}")
+            
+            # Extraire la valeur de la langue pour les logs et la traduction
+            langue_value = langue_utilisateur.value if hasattr(langue_utilisateur, 'value') else str(langue_utilisateur)
+            print(f"[NOTIFICATION] Envoi à {user.id} ({user.nom}) - Langue préférée: {langue_value}")
+            print(f"[NOTIFICATION] Texte original - Titre: {urgence.titre}, Message: {urgence.message}")
 
-            # Préparer la charge utile
+            # Préparer la charge utile avec traduction
             if template_cls:
                 template = template_cls()
                 charge = template.build_context(urgence, self.traduire, langue_utilisateur)
@@ -643,14 +684,38 @@ class NotificationBase(metaclass=NotificationMeta):
                     "titre": titre,
                     "message": message_traduit
                 }
+            
+            print(f"[NOTIFICATION] Texte traduit ({langue_value}) - Titre: {charge.get('titre', '')}, Message: {charge.get('message', '')}")
 
             # Créer le message
             message = Message(charge=charge, priorite=urgence.priorite, utilisateur=user)
 
             # Dispatcher directement vers le canal
-            canal_nom = prefs.canal_prefere if prefs and prefs.canal_prefere else "email"
+            canal_nom = "email"  # Par défaut
+            if prefs and prefs.canal_prefere:
+                canal_prefere_val = prefs.canal_prefere
+                if isinstance(canal_prefere_val, str):
+                    canal_nom = canal_prefere_val
+                else:
+                    canal_nom = str(canal_prefere_val)
             canal = self.canaux.get(canal_nom, self.canaux["email"])
-            canal.livrer(message)
+            
+            # Livrer le message
+            success = canal.livrer(message)
+            
+            # Enregistrer la notification dans le log si la livraison a réussi
+            if success and notifications_logger:
+                try:
+                    notifications_logger.log_notification(
+                        student_id=user.id,
+                        notification_type=urgence.type.value,
+                        titre=charge.get("titre", urgence.titre),
+                        message=charge.get("message", urgence.message),
+                        priorite=urgence.priorite.name,
+                        canal=canal_nom
+                    )
+                except Exception as e:
+                    print(f"[NOTIFICATION] Erreur lors de l'enregistrement du log: {e}")
 
 
 @register_in_global_registry
