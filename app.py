@@ -379,7 +379,8 @@ def index():
         },
         "documentation": {
             "swagger_ui": "/api/docs",
-            "api_spec": "/api/apispec.json"
+            "api_spec": "/api/apispec.json",
+            "description": "Documentation interactive Swagger/OpenAPI disponible à /api/docs"
         }
     }), 200
 
