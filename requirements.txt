@@ -6,4 +6,6 @@ click==8.1.7
 requests==2.31.0
 email-validator==2.1.0
 deep-translator==1.11.4
+gunicorn==21.2.0
+python-dotenv==1.0.0
 

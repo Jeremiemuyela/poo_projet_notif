@@ -1,3 +1,16 @@
+# Fichiers de configuration sensibles
+users.json
+students.json
+notifications_log.json
+.env
+
+# Base de données SQLite (ne pas commiter en production)
+# notifications.db est déjà dans le repo pour le développement
+# Décommentez la ligne suivante si vous ne voulez pas commiter la DB
+# notifications.db
+# notifications.db-wal
+# notifications.db-shm
+
 # Python
 __pycache__/
 *.py[cod]

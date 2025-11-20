@@ -1,0 +1,47 @@
+# Fichiers et dossiers à ignorer lors de la construction de l'image Docker
+
+# Environnements virtuels Python
+venv/
+env/
+ENV/
+.venv/
+notif/
+
+# Fichiers Python compilés
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Fichiers de configuration sensibles (seront créés via variables d'environnement)
+users.json
+students.json
+notifications_log.json
+.env
+
+# Fichiers Git
+.git/
+.gitignore
+
+# Fichiers IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Fichiers OS
+.DS_Store
+Thumbs.db
+
+# Documentation (optionnel, peut être inclus)
+*.md
+!README.md
+
+# Tests
+test_*.py
+*_test.py
+
+# Logs
+*.log
+
+

@@ -1,6 +1,7 @@
 """
 Application Flask - API RESTful pour le système de notification d'urgence
 """
+import os
 from flask import Flask, request, jsonify, session
 from typing import Dict, List, Any, Optional
 import projetnotif as notif
@@ -13,7 +14,15 @@ from queue_manager import queue_manager
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False  # Pour supporter les caractères français
-app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'  # À changer en production !
+
+# Charger SECRET_KEY depuis les variables d'environnement ou utiliser une valeur par défaut
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Initialiser la base de données si elle n'existe pas
+from db import init_db, db_exists
+if not db_exists():
+    print("[APP] Initialisation de la base de données...")
+    init_db()
 
 # Initialiser les utilisateurs par défaut
 init_default_users()
@@ -586,5 +595,9 @@ if __name__ == '__main__':
     print("  GET  /admin/status                  - Statut du système")
     print("\nDémarrage du serveur Flask...")
     print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # En développement, utiliser le serveur Flask intégré
+    # En production, utiliser gunicorn (voir Procfile)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') != 'production'
+    app.run(debug=debug, host='0.0.0.0', port=port)
 
