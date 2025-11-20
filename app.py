@@ -9,6 +9,7 @@ from admin import admin_bp
 from student import student_bp
 from auth import init_default_users, require_auth
 from queue_manager import queue_manager
+from flasgger import Swagger
 
 # ==================== INITIALISATION FLASK ====================
 
@@ -30,6 +31,108 @@ init_default_users()
 # Enregistrer les Blueprints
 app.register_blueprint(admin_bp)
 app.register_blueprint(student_bp)
+
+# Initialiser Swagger pour la documentation automatique de l'API
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/api/apispec.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/api/docs"
+}
+
+swagger_template = {
+    "swagger": "2.0",
+    "info": {
+        "title": "API - Système de Notification d'Urgence",
+        "description": "API RESTful pour la gestion des notifications d'urgence pour les étudiants",
+        "version": "1.0.0",
+        "contact": {
+            "name": "Support API",
+            "email": "support@example.com"
+        }
+    },
+    "host": "localhost:5000",
+    "basePath": "/api",
+    "schemes": ["http", "https"],
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header",
+            "description": "Clé API pour l'authentification. Obtenez votre clé API via l'interface admin."
+        }
+    },
+    "tags": [
+        {
+            "name": "Health",
+            "description": "Endpoints de vérification de santé"
+        },
+        {
+            "name": "Notifications",
+            "description": "Envoi et gestion des notifications d'urgence"
+        },
+        {
+            "name": "Queue",
+            "description": "Gestion de la file d'attente des notifications"
+        }
+    ]
+}
+
+swagger = Swagger(app, config=swagger_config, template=swagger_template)
+
+# Schéma réutilisable pour les notifications
+NOTIFICATION_SCHEMA = {
+    "type": "object",
+    "required": ["titre", "message", "utilisateurs"],
+    "properties": {
+        "titre": {
+            "type": "string",
+            "description": "Titre de la notification",
+            "example": "Alerte"
+        },
+        "message": {
+            "type": "string",
+            "description": "Message de la notification",
+            "example": "Message d'alerte"
+        },
+        "priorite": {
+            "type": "string",
+            "enum": ["CRITIQUE", "HAUTE", "NORMALE"],
+            "default": "NORMALE",
+            "description": "Priorité de la notification"
+        },
+        "utilisateurs": {
+            "type": "array",
+            "description": "Liste des étudiants à notifier",
+            "items": {
+                "type": "object",
+                "required": ["id", "nom", "email"],
+                "properties": {
+                    "id": {"type": "string", "example": "etudiant1"},
+                    "nom": {"type": "string", "example": "Jean Dupont"},
+                    "email": {"type": "string", "format": "email", "example": "jean@univ.fr"},
+                    "langue": {"type": "string", "enum": ["fr", "en"], "default": "fr"},
+                    "telephone": {"type": "string", "example": "+33123456789"},
+                    "preferences": {
+                        "type": "object",
+                        "properties": {
+                            "canal_prefere": {"type": "string", "enum": ["email", "sms", "app"], "default": "email"},
+                            "actif": {"type": "boolean", "default": True}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 # ==================== INITIALISATION DES SERVICES ====================
 
@@ -274,7 +377,10 @@ def index():
             "admin": "/admin/",
             "student": "/student/"
         },
-        "documentation": "Consultez /api/notifications/types pour plus d'informations"
+        "documentation": {
+            "swagger_ui": "/api/docs",
+            "api_spec": "/api/apispec.json"
+        }
     }), 200
 
 
@@ -282,7 +388,29 @@ def index():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Endpoint de vérification de santé de l'API."""
+    """
+    Vérification de santé de l'API
+    ---
+    tags:
+      - Health
+    summary: Vérifie que l'API est opérationnelle
+    description: Retourne le statut de santé de l'API et sa version
+    responses:
+      200:
+        description: API opérationnelle
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: healthy
+            service:
+              type: string
+              example: Système de notification d'urgence
+            version:
+              type: string
+              example: 1.0.0
+    """
     return jsonify({
         "status": "healthy",
         "service": "Système de notification d'urgence",
@@ -293,27 +421,126 @@ def health_check():
 @app.route('/api/notifications/meteo', methods=['POST'])
 def envoyer_notification_meteo():
     """
-    Endpoint pour envoyer une notification météorologique.
-    
-    Body JSON attendu:
-    {
-        "titre": "alerte_meteo",
-        "message": "Tempête prévue ce soir",
-        "priorite": "HAUTE",  // optionnel: CRITIQUE, HAUTE, NORMALE (défaut: NORMALE)
-        "utilisateurs": [
-            {
-                "id": "etudiant1",
-                "nom": "Jean Dupont",
-                "email": "jean@univ.fr",
-                "langue": "fr",  // optionnel: fr, en (défaut: fr)
-                "telephone": "+33123456789",  // optionnel
-                "preferences": {  // optionnel
-                    "canal_prefere": "email",  // email, sms, app
-                    "actif": true
-                }
-            }
-        ]
-    }
+    Envoyer une notification météorologique
+    ---
+    tags:
+      - Notifications
+    summary: Envoie une notification météorologique aux étudiants
+    description: |
+      Envoie une notification météorologique avec calcul automatique des zones à risque.
+      La notification est mise en file d'attente pour traitement asynchrone.
+      Les notifications sont automatiquement traduites selon les préférences de langue de chaque étudiant.
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        description: Données de la notification météorologique
+        required: true
+        schema:
+          type: object
+          required:
+            - titre
+            - message
+            - utilisateurs
+          properties:
+            titre:
+              type: string
+              description: Titre de la notification
+              example: "Alerte météorologique"
+            message:
+              type: string
+              description: Message de la notification
+              example: "Tempête prévue ce soir, vents forts attendus"
+            priorite:
+              type: string
+              enum: [CRITIQUE, HAUTE, NORMALE]
+              default: NORMALE
+              description: Priorité de la notification
+            utilisateurs:
+              type: array
+              description: Liste des étudiants à notifier
+              items:
+                type: object
+                required:
+                  - id
+                  - nom
+                  - email
+                properties:
+                  id:
+                    type: string
+                    example: "etudiant1"
+                  nom:
+                    type: string
+                    example: "Jean Dupont"
+                  email:
+                    type: string
+                    format: email
+                    example: "jean@univ.fr"
+                  langue:
+                    type: string
+                    enum: [fr, en]
+                    default: fr
+                    description: Langue préférée de l'étudiant
+                  telephone:
+                    type: string
+                    example: "+33123456789"
+                    description: Numéro de téléphone (optionnel)
+                  preferences:
+                    type: object
+                    properties:
+                      canal_prefere:
+                        type: string
+                        enum: [email, sms, app]
+                        default: email
+                      actif:
+                        type: boolean
+                        default: true
+    responses:
+      202:
+        description: Notification mise en file d'attente avec succès
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            message:
+              type: string
+              example: "Notification météorologique mise en file d'attente"
+            type:
+              type: string
+              example: "meteo"
+            task_id:
+              type: string
+              example: "task_123456"
+            status:
+              type: string
+              example: "pending"
+      400:
+        description: Erreur de validation des données
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            error:
+              type: string
+              example: "Le champ 'utilisateurs' (liste) est requis"
+      500:
+        description: Erreur serveur
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            error:
+              type: string
+              example: "Erreur lors de l'envoi de la notification"
     """
     try:
         # Vérifier que la requête contient du JSON
@@ -367,15 +594,72 @@ def envoyer_notification_meteo():
 @require_auth
 def envoyer_notification_securite():
     """
-    Endpoint pour envoyer une notification de sécurité.
-    
-    Body JSON attendu:
-    {
-        "titre": "alerte_securite",
-        "message": "ÉVACUATION IMMÉDIATE",
-        "priorite": "CRITIQUE",  // requis pour sécurité
-        "utilisateurs": [...]
-    }
+    Envoyer une notification de sécurité
+    ---
+    tags:
+      - Notifications
+    summary: Envoie une notification de sécurité (authentification requise)
+    description: |
+      Envoie une notification de sécurité avec gestion des urgences critiques.
+      **Authentification requise** : Ajoutez l'en-tête `X-API-Key: VOTRE_CLE_API`
+    security:
+      - ApiKeyAuth: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - titre
+            - message
+            - utilisateurs
+          properties:
+            titre:
+              type: string
+              example: "Alerte sécurité"
+            message:
+              type: string
+              example: "ÉVACUATION IMMÉDIATE"
+            priorite:
+              type: string
+              enum: [CRITIQUE, HAUTE, NORMALE]
+              default: CRITIQUE
+            utilisateurs:
+              type: array
+              items:
+                type: object
+                required: [id, nom, email]
+                properties:
+                  id: {type: string, example: "etudiant1"}
+                  nom: {type: string, example: "Jean Dupont"}
+                  email: {type: string, format: email, example: "jean@univ.fr"}
+                  langue: {type: string, enum: [fr, en], default: fr}
+                  telephone: {type: string, example: "+33123456789"}
+                  preferences:
+                    type: object
+                    properties:
+                      canal_prefere: {type: string, enum: [email, sms, app], default: email}
+                      actif: {type: boolean, default: true}
+    responses:
+      202:
+        description: Notification mise en file d'attente
+        schema:
+          type: object
+          properties:
+            success: {type: boolean, example: true}
+            message: {type: string, example: "Notification de sécurité mise en file d'attente"}
+            type: {type: string, example: "securite"}
+            task_id: {type: string, example: "task_123456"}
+            status: {type: string, example: "pending"}
+      400:
+        description: Erreur de validation
+      401:
+        description: Authentification requise
+      500:
+        description: Erreur serveur
     """
     try:
         if not request.is_json:
@@ -427,15 +711,62 @@ def envoyer_notification_securite():
 @require_auth
 def envoyer_notification_sante():
     """
-    Endpoint pour envoyer une notification de santé.
-    
-    Body JSON attendu:
-    {
-        "titre": "alerte_sante",
-        "message": "Campagne de vaccination disponible",
-        "priorite": "NORMALE",  // optionnel
-        "utilisateurs": [...]
-    }
+    Envoyer une notification de santé
+    ---
+    tags:
+      - Notifications
+    summary: Envoie une notification de santé (authentification requise)
+    description: |
+      Envoie une notification de santé avec confirmation requise.
+      **Authentification requise** : Ajoutez l'en-tête `X-API-Key: VOTRE_CLE_API`
+    security:
+      - ApiKeyAuth: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [titre, message, utilisateurs]
+          properties:
+            titre: {type: string, example: "Alerte santé"}
+            message: {type: string, example: "Campagne de vaccination disponible"}
+            priorite: {type: string, enum: [CRITIQUE, HAUTE, NORMALE], default: NORMALE}
+            utilisateurs:
+              type: array
+              items:
+                type: object
+                required: [id, nom, email]
+                properties:
+                  id: {type: string, example: "etudiant1"}
+                  nom: {type: string, example: "Jean Dupont"}
+                  email: {type: string, format: email, example: "jean@univ.fr"}
+                  langue: {type: string, enum: [fr, en], default: fr}
+                  telephone: {type: string, example: "+33123456789"}
+                  preferences:
+                    type: object
+                    properties:
+                      canal_prefere: {type: string, enum: [email, sms, app], default: email}
+                      actif: {type: boolean, default: true}
+    responses:
+      202:
+        description: Notification mise en file d'attente
+        schema:
+          type: object
+          properties:
+            success: {type: boolean, example: true}
+            message: {type: string, example: "Notification de santé mise en file d'attente"}
+            type: {type: string, example: "sante"}
+            task_id: {type: string, example: "task_123456"}
+            status: {type: string, example: "pending"}
+      400:
+        description: Erreur de validation
+      401:
+        description: Authentification requise
+      500:
+        description: Erreur serveur
     """
     try:
         if not request.is_json:
@@ -487,15 +818,62 @@ def envoyer_notification_sante():
 @require_auth
 def envoyer_notification_infra():
     """
-    Endpoint pour envoyer une notification d'infrastructure.
-    
-    Body JSON attendu:
-    {
-        "titre": "alerte_infra",
-        "message": "Coupure d'eau prévue demain",
-        "priorite": "HAUTE",  // optionnel
-        "utilisateurs": [...]
-    }
+    Envoyer une notification d'infrastructure
+    ---
+    tags:
+      - Notifications
+    summary: Envoie une notification d'infrastructure (authentification requise)
+    description: |
+      Envoie une notification concernant l'infrastructure (coupures, maintenance, etc.).
+      **Authentification requise** : Ajoutez l'en-tête `X-API-Key: VOTRE_CLE_API`
+    security:
+      - ApiKeyAuth: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [titre, message, utilisateurs]
+          properties:
+            titre: {type: string, example: "Alerte infrastructure"}
+            message: {type: string, example: "Coupure d'eau prévue demain"}
+            priorite: {type: string, enum: [CRITIQUE, HAUTE, NORMALE], default: NORMALE}
+            utilisateurs:
+              type: array
+              items:
+                type: object
+                required: [id, nom, email]
+                properties:
+                  id: {type: string, example: "etudiant1"}
+                  nom: {type: string, example: "Jean Dupont"}
+                  email: {type: string, format: email, example: "jean@univ.fr"}
+                  langue: {type: string, enum: [fr, en], default: fr}
+                  telephone: {type: string, example: "+33123456789"}
+                  preferences:
+                    type: object
+                    properties:
+                      canal_prefere: {type: string, enum: [email, sms, app], default: email}
+                      actif: {type: boolean, default: true}
+    responses:
+      202:
+        description: Notification mise en file d'attente
+        schema:
+          type: object
+          properties:
+            success: {type: boolean, example: true}
+            message: {type: string, example: "Notification d'infrastructure mise en file d'attente"}
+            type: {type: string, example: "infra"}
+            task_id: {type: string, example: "task_123456"}
+            status: {type: string, example: "pending"}
+      400:
+        description: Erreur de validation
+      401:
+        description: Authentification requise
+      500:
+        description: Erreur serveur
     """
     try:
         if not request.is_json:
@@ -546,7 +924,40 @@ def envoyer_notification_infra():
 @app.route('/api/queue/tasks/<task_id>', methods=['GET'])
 @require_auth
 def get_task_status(task_id: str):
-    """Récupère le statut d'une tâche."""
+    """
+    Récupérer le statut d'une tâche
+    ---
+    tags:
+      - Queue
+    summary: Récupère le statut d'une tâche de notification (authentification requise)
+    security:
+      - ApiKeyAuth: []
+    parameters:
+      - name: task_id
+        in: path
+        type: string
+        required: true
+        description: ID de la tâche
+        example: "task_123456"
+    responses:
+      200:
+        description: Statut de la tâche
+        schema:
+          type: object
+          properties:
+            success: {type: boolean, example: true}
+            task:
+              type: object
+              properties:
+                id: {type: string, example: "task_123456"}
+                type: {type: string, example: "meteo"}
+                status: {type: string, example: "completed"}
+                created_at: {type: string, example: "2025-11-20T10:00:00"}
+      401:
+        description: Authentification requise
+      404:
+        description: Tâche non trouvée
+    """
     task = queue_manager.get_task(task_id)
     if not task:
         return jsonify({
@@ -563,7 +974,31 @@ def get_task_status(task_id: str):
 @app.route('/api/queue/stats', methods=['GET'])
 @require_auth
 def get_queue_stats():
-    """Récupère les statistiques de la file d'attente."""
+    """
+    Récupérer les statistiques de la file d'attente
+    ---
+    tags:
+      - Queue
+    summary: Récupère les statistiques de la file d'attente (authentification requise)
+    security:
+      - ApiKeyAuth: []
+    responses:
+      200:
+        description: Statistiques de la file d'attente
+        schema:
+          type: object
+          properties:
+            success: {type: boolean, example: true}
+            stats:
+              type: object
+              properties:
+                total: {type: integer, example: 10}
+                pending: {type: integer, example: 2}
+                completed: {type: integer, example: 7}
+                failed: {type: integer, example: 1}
+      401:
+        description: Authentification requise
+    """
     stats = queue_manager.get_stats()
     return jsonify({
         "success": True,
@@ -573,7 +1008,39 @@ def get_queue_stats():
 
 @app.route('/api/notifications/types', methods=['GET'])
 def lister_types_notifications():
-    """Liste tous les types de notifications disponibles."""
+    """
+    Lister les types de notifications disponibles
+    ---
+    tags:
+      - Notifications
+    summary: Liste tous les types de notifications disponibles
+    description: Retourne la liste de tous les types de notifications avec leurs endpoints et descriptions
+    produces:
+      - application/json
+    responses:
+      200:
+        description: Liste des types de notifications
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            types:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: "meteo"
+                  endpoint:
+                    type: string
+                    example: "/api/notifications/meteo"
+                  description:
+                    type: string
+                    example: "Notifications météorologiques avec calcul de zones à risque"
+    """
     return jsonify({
         "success": True,
         "types": [

@@ -1,0 +1,67 @@
+swagger: "2.0"
+info:
+  title: "API - Système de Notification d'Urgence"
+  description: |
+    API RESTful pour la gestion des notifications d'urgence pour les étudiants.
+    
+    ## Authentification
+    
+    Certains endpoints nécessitent une authentification via :
+    - **Clé API** : Ajoutez l'en-tête `X-API-Key: VOTRE_CLE_API`
+    - **Session web** : Connectez-vous via `/admin/login` ou `/student/login`
+    
+    ## Types de Notifications
+    
+    - **meteo** : Notifications météorologiques avec calcul de zones à risque
+    - **securite** : Notifications de sécurité avec gestion des urgences critiques
+    - **sante** : Notifications de santé avec confirmation requise
+    - **infra** : Notifications d'infrastructure
+    
+    ## Priorités
+    
+    - **CRITIQUE** : Urgence absolue, action immédiate requise
+    - **HAUTE** : Urgence élevée, action rapide recommandée
+    - **NORMALE** : Notification standard
+    
+    ## Langues Supportées
+    
+    - **fr** : Français (par défaut)
+    - **en** : Anglais
+    
+    Les notifications sont automatiquement traduites selon les préférences de l'étudiant.
+  version: "1.0.0"
+  contact:
+    name: "Support API"
+    email: "support@example.com"
+  license:
+    name: "MIT"
+    url: "https://opensource.org/licenses/MIT"
+host: "localhost:5000"
+basePath: "/api"
+schemes:
+  - http
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  ApiKeyAuth:
+    type: apiKey
+    name: X-API-Key
+    in: header
+    description: |
+      Clé API pour l'authentification. 
+      Obtenez votre clé API via l'interface admin ou contactez un administrateur.
+tags:
+  - name: Health
+    description: Endpoints de vérification de santé
+  - name: Notifications
+    description: Envoi et gestion des notifications d'urgence
+  - name: Queue
+    description: Gestion de la file d'attente des notifications
+  - name: Admin
+    description: Interface d'administration (authentification requise)
+  - name: Student
+    description: Interface étudiant (authentification requise)
+
