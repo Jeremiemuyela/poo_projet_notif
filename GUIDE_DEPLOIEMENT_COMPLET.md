@@ -112,6 +112,15 @@ Railway va :
 #### 3.6 Tester votre application déployée
 
 Ouvrez l'URL dans votre navigateur :
+
+**Page d'accueil** :
+```
+https://votre-url/
+```
+
+Vous verrez une page d'accueil avec toutes les informations sur l'API et les liens vers les interfaces.
+
+**Vérification de santé** :
 ```
 https://votre-url/api/health
 ```
@@ -119,10 +128,15 @@ https://votre-url/api/health
 Vous devriez voir :
 ```json
 {
-  "status": "ok",
-  "message": "API opérationnelle"
+  "status": "healthy",
+  "service": "Système de notification d'urgence",
+  "version": "1.0.0"
 }
 ```
+
+**Interfaces disponibles** :
+- Interface Admin : `https://votre-url/admin/`
+- Interface Étudiant : `https://votre-url/student/`
 
 ---
 

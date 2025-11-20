@@ -252,6 +252,32 @@ def internal_error(error):
     }), 500
 
 
+# ==================== ROUTE RACINE ====================
+
+@app.route('/', methods=['GET'])
+def index():
+    """Page d'accueil avec informations sur l'API et liens vers les interfaces."""
+    return jsonify({
+        "success": True,
+        "service": "Système de notification d'urgence",
+        "version": "1.0.0",
+        "description": "API RESTful pour la gestion des notifications d'urgence",
+        "endpoints": {
+            "health": "/api/health",
+            "types": "/api/notifications/types",
+            "meteo": "/api/notifications/meteo",
+            "securite": "/api/notifications/securite",
+            "sante": "/api/notifications/sante",
+            "infra": "/api/notifications/infra"
+        },
+        "interfaces": {
+            "admin": "/admin/",
+            "student": "/student/"
+        },
+        "documentation": "Consultez /api/notifications/types pour plus d'informations"
+    }), 200
+
+
 # ==================== ENDPOINTS API RESTful ====================
 
 @app.route('/api/health', methods=['GET'])
