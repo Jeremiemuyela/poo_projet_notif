@@ -143,6 +143,10 @@
                         <a class="nav-link {% if request.endpoint == 'admin.send_notification_page' %}active{% endif %}" href="{{ url_for('admin.send_notification_page') }}">
                             <i class="bi bi-send"></i> Envoyer Notification
                         </a>
+                        <a class="nav-link" href="/api/docs" target="_blank">
+                            <i class="bi bi-book"></i> Documentation API
+                            <i class="bi bi-box-arrow-up-right ms-1" style="font-size: 0.7rem;"></i>
+                        </a>
                         {% if session.user %}
                         <hr class="text-white-50 my-3">
                         <a class="nav-link" href="{{ url_for('admin.logout') }}">
