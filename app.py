@@ -13,7 +13,7 @@ from flasgger import Swagger
 
 # ==================== INITIALISATION FLASK ====================
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['JSON_AS_ASCII'] = False  # Pour supporter les caractères français
 
 # Charger SECRET_KEY depuis les variables d'environnement ou utiliser une valeur par défaut

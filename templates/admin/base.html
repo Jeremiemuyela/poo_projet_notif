@@ -12,7 +12,9 @@
     
     <style>
         :root {
-            --primary-color: #0d6efd;
+            --primary-color: #0088cc;
+            --primary-dark: #006699;
+            --primary-light: #00aaff;
             --secondary-color: #6c757d;
             --success-color: #198754;
             --danger-color: #dc3545;
@@ -27,7 +29,7 @@
         
         .sidebar {
             min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0088cc 0%, #006699 100%);
             color: white;
             padding: 0;
         }
@@ -58,7 +60,7 @@
         }
         
         .card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0088cc 0%, #006699 100%);
             color: white;
             border-radius: 12px 12px 0 0 !important;
             padding: 15px 20px;
@@ -66,12 +68,12 @@
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0088cc 0%, #006699 100%);
             border: none;
         }
         
         .btn-primary:hover {
-            background: linear-gradient(135deg, #5568d3 0%, #653a91 100%);
+            background: linear-gradient(135deg, #006699 0%, #005588 100%);
         }
         
         .alert {
@@ -81,8 +83,8 @@
         
         .form-control:focus,
         .form-select:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            border-color: #0088cc;
+            box-shadow: 0 0 0 0.2rem rgba(0, 136, 204, 0.25);
         }
         
         .stat-card {
@@ -96,13 +98,25 @@
         .stat-card .stat-value {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #667eea;
+            color: #0088cc;
         }
         
         .stat-card .stat-label {
             color: #6c757d;
             font-size: 0.9rem;
             margin-top: 5px;
+        }
+        
+        .logo-container {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 20px;
+        }
+        
+        .logo-container img {
+            max-width: 150px;
+            max-height: 150px;
+            height: auto;
         }
     </style>
     
@@ -114,8 +128,16 @@
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 sidebar">
                 <div class="p-4">
-                    <h4 class="mb-4">
-                        <i class="bi bi-shield-check"></i> Administration
+                    <div class="logo-container">
+                        <img src="{{ url_for('static', filename='images/logo-unh.png') }}" 
+                             alt="Université Nouveaux Horizons" 
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div style="display: none;">
+                            <i class="bi bi-shield-check" style="font-size: 3rem;"></i>
+                        </div>
+                    </div>
+                    <h4 class="mb-4 text-center">
+                        Administration
                     </h4>
                     {% if session.user %}
                     <div class="mb-3 text-white-50 small">

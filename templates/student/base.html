@@ -11,8 +11,14 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     
     <style>
+        :root {
+            --primary-color: #0088cc;
+            --primary-dark: #006699;
+            --primary-light: #00aaff;
+        }
+        
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0088cc 0%, #006699 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
@@ -27,7 +33,7 @@
         }
         
         .navbar-custom {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0088cc 0%, #006699 100%);
             border-radius: 10px;
             margin-bottom: 20px;
         }
@@ -50,10 +56,31 @@
         }
         
         .card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0088cc 0%, #006699 100%);
             color: white;
             border-radius: 10px 10px 0 0 !important;
             font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #0088cc 0%, #006699 100%);
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #006699 0%, #005588 100%);
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo-container img {
+            max-width: 120px;
+            max-height: 120px;
+            height: auto;
         }
     </style>
     
@@ -65,8 +92,11 @@
             <!-- Navigation -->
             <nav class="navbar navbar-expand-lg navbar-custom">
                 <div class="container-fluid">
-                    <a class="navbar-brand" href="{{ url_for('student.dashboard') }}">
-                        <i class="bi bi-mortarboard"></i> Interface Étudiant
+                    <a class="navbar-brand logo-container" href="{{ url_for('student.dashboard') }}">
+                        <img src="{{ url_for('static', filename='images/logo-unh.png') }}" 
+                             alt="Université Nouveaux Horizons"
+                             onerror="this.style.display='none';">
+                        <span>Interface Étudiant</span>
                     </a>
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                         <span class="navbar-toggler-icon"></span>
